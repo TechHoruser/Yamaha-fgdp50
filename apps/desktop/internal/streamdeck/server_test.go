@@ -53,17 +53,36 @@ func TestHandleCommand_invalidJSON(t *testing.T) {
 }
 
 func TestDispatch_allSupportedActions(t *testing.T) {
-	actions := []ActionType{
-		ActionSelectTrack1, ActionSelectTrack2, ActionSelectTrack3, ActionSelectTrack4,
+	noPayload := []ActionType{
 		ActionPrevTrack, ActionNextTrack,
 		ActionUndo, ActionMuteActive, ActionClearActive, ActionToggleMetronome,
+		ActionMergeWithBelow,
 		ActionPlayPause, ActionRecord, ActionOverdub, ActionStop,
 	}
 	s := newTestServer()
-	for _, a := range actions {
+	for _, a := range noPayload {
 		w := postCommand(t, s, Command{Action: a})
 		if w.Code != http.StatusNoContent {
 			t.Errorf("action %s: want 204, got %d", a, w.Code)
 		}
+	}
+}
+
+func TestDispatch_selectTrackWithPayload(t *testing.T) {
+	s := newTestServer()
+	for _, n := range []int{1, 2, 3, 4} {
+		w := postCommand(t, s, Command{Action: ActionSelectTrack, Payload: float64(n)})
+		if w.Code != http.StatusNoContent {
+			t.Errorf("SELECT_TRACK %d: want 204, got %d", n, w.Code)
+		}
+	}
+}
+
+func TestDispatch_selectTrackMissingPayload(t *testing.T) {
+	s := newTestServer()
+	// Missing payload is silently ignored (no crash, still 204).
+	w := postCommand(t, s, Command{Action: ActionSelectTrack})
+	if w.Code != http.StatusNoContent {
+		t.Errorf("want 204, got %d", w.Code)
 	}
 }

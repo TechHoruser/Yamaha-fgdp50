@@ -117,6 +117,22 @@ func (e *Engine) NextTrack() {
 	e.activeTrack = (e.activeTrack + 1) % len(e.tracks)
 }
 
+// MergeWithBelow combines the active track's loop with the track below it (wrapping
+// around), marks the active track as having a loop, and clears the source track.
+// This frees a track slot without losing recorded content.
+func (e *Engine) MergeWithBelow() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	below := (e.activeTrack + 1) % len(e.tracks)
+	active := e.tracks[e.activeTrack]
+	src := e.tracks[below]
+	if active.HasLoop || src.HasLoop {
+		active.HasLoop = true
+		active.State = TrackIdle
+		src.Clear()
+	}
+}
+
 func (e *Engine) GetState() State {
 	e.mu.RLock()
 	defer e.mu.RUnlock()

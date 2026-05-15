@@ -3,12 +3,9 @@ package streamdeck
 type ActionType string
 
 const (
-	// Row 1 — Direct track selection
-	ActionSelectTrack1 ActionType = "SELECT_TRACK_1"
-	ActionSelectTrack2 ActionType = "SELECT_TRACK_2"
-	ActionSelectTrack3 ActionType = "SELECT_TRACK_3"
-	ActionSelectTrack4 ActionType = "SELECT_TRACK_4"
-	ActionUndo         ActionType = "UNDO"
+	// Row 1 — Direct track selection (payload: track number as integer)
+	ActionSelectTrack ActionType = "SELECT_TRACK"
+	ActionUndo        ActionType = "UNDO"
 
 	// Row 2 — Active track actions
 	ActionPrevTrack       ActionType = "PREV_TRACK"
@@ -16,6 +13,7 @@ const (
 	ActionMuteActive      ActionType = "MUTE_ACTIVE"
 	ActionClearActive     ActionType = "CLEAR_ACTIVE"
 	ActionToggleMetronome ActionType = "TOGGLE_METRONOME"
+	ActionMergeWithBelow  ActionType = "MERGE_WITH_BELOW"
 
 	// Row 3 — Transport
 	ActionPlayPause ActionType = "PLAY_PAUSE"
