@@ -73,9 +73,10 @@ func (a *App) ToggleMetronome() {
 	a.looperEngine.ToggleMetronome()
 }
 
-func (a *App) PrevTrack()             { a.looperEngine.PrevTrack() }
-func (a *App) NextTrack()             { a.looperEngine.NextTrack() }
-func (a *App) GetState() looper.State { return a.looperEngine.GetState() }
+func (a *App) PrevTrack()              { a.looperEngine.PrevTrack() }
+func (a *App) NextTrack()              { a.looperEngine.NextTrack() }
+func (a *App) GetState() looper.State  { return a.looperEngine.GetState() }
+func (a *App) GetActiveTrack() int     { return a.looperEngine.GetActiveTrack() }
 func (a *App) IsMetronomeActive() bool { return a.looperEngine.IsMetronomeActive() }
 
 // CheckForUpdates queries the GitHub Releases API and returns update info.

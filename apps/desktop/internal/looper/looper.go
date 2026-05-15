@@ -139,6 +139,12 @@ func (e *Engine) GetState() State {
 	return e.state
 }
 
+func (e *Engine) GetActiveTrack() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.activeTrack + 1
+}
+
 func (e *Engine) IsMetronomeActive() bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
