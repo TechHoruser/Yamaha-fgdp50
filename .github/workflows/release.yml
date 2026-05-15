@@ -41,22 +41,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Install git-cliff directly — avoids the git-cliff-action Docker image
-      # which is based on Debian Buster (EOL) and fails with apt-get 404s.
-      - name: Install git-cliff
-        run: |
-          curl -sSfLo /tmp/git-cliff.tar.gz \
-            "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-unknown-linux-musl.tar.gz"
-          tar -xz -C /tmp -f /tmp/git-cliff.tar.gz
-          sudo install -m755 /tmp/git-cliff-2.6.0-x86_64-unknown-linux-musl/git-cliff /usr/local/bin/git-cliff
-          git-cliff --version
+      # taiki-e/install-action downloads the pre-built musl binary from GitHub
+      # Releases — no Docker, no apt-get, cross-platform and version-pinned.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
 
       - name: Generate release notes
         id: cliff
         run: |
           {
             echo 'notes<<CLIFF_EOF'
-            git-cliff --unreleased --tag ${{ needs.prepare.outputs.version }} --strip header --config cliff.toml
+            git-cliff --unreleased --tag ${{ needs.prepare.outputs.version }} --strip header
             echo 'CLIFF_EOF'
           } >> "$GITHUB_OUTPUT"
 
