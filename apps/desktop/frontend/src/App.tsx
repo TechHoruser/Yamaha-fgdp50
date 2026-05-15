@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { TrackPanel } from './ui/components/TrackPanel'
 import { TransportBar } from './ui/components/TransportBar'
 import { Metronome } from './ui/components/Metronome'
@@ -26,6 +26,8 @@ const App: React.FC = () => {
   const { engine, ready: engineReady, error: engineError } = useAudioEngine(selectedId)
   const { updateInfo, installing, error: updateError, install, dismiss } = useAutoUpdate()
   const [trackNames, setTrackNames] = useState<Record<number, string>>(DEFAULT_TRACK_NAMES)
+  const [liveWaveform, setLiveWaveform] = useState<number[] | null>(null)
+  const rafRef = useRef<number | null>(null)
 
   const recordingTrackId = engine?.recordingTrackId() ?? null
   const isRecording = engine?.isRecording() ?? false
@@ -38,6 +40,36 @@ const App: React.FC = () => {
       : isRecording ? 'recording'
         : isPlaying ? 'playing'
           : 'idle'
+
+  // Live waveform via requestAnimationFrame while recording
+  useEffect(() => {
+    if (!isRecording || !engine) {
+      setLiveWaveform(null)
+      return
+    }
+    const bars = 80
+    const animate = () => {
+      const raw = engine.getTimeDomainData()
+      if (raw) {
+        const blockSize = Math.floor(raw.length / bars)
+        if (blockSize > 0) {
+          const data = Array.from({ length: bars }, (_, i) => {
+            let max = 0
+            const start = i * blockSize
+            for (let j = 0; j < blockSize; j++) {
+              const v = Math.abs((raw[start + j] - 128) / 128)
+              if (v > max) max = v
+            }
+            return max
+          })
+          setLiveWaveform(data)
+        }
+      }
+      rafRef.current = requestAnimationFrame(animate)
+    }
+    rafRef.current = requestAnimationFrame(animate)
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
+  }, [isRecording, engine])
 
   const handleSelectTrack = (id: number) => dispatch('SelectTrack', id)
 
@@ -217,6 +249,7 @@ const App: React.FC = () => {
       {/* ── Track list ── */}
       <main style={{ flex: 1, overflowY: 'auto' }}>
         {state.tracks.map((track) => {
+          const isThisRecording = track.id === recordingTrackId
           const realWaveform = engine?.getWaveform(track.id) ?? null
           const hasLoop = engine?.hasLoop(track.id) ?? track.hasLoop
           return (
@@ -227,9 +260,9 @@ const App: React.FC = () => {
               active={track.id === state.activeTrack}
               muted={track.muted}
               hasLoop={hasLoop}
-              recording={track.id === recordingTrackId}
+              recording={isThisRecording}
               bpm={state.bpm}
-              waveformData={realWaveform}
+              waveformData={isThisRecording ? liveWaveform : realWaveform}
               onSelect={() => handleSelectTrack(track.id)}
               onMute={() => handleMuteTrack(track.id)}
               onVolumeChange={(v) => handleVolumeChange(track.id, v)}

@@ -192,20 +192,56 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
           alignItems: 'center',
           overflow: 'hidden',
           minWidth: 0,
+          position: 'relative',
         }}
       >
         {recording ? (
-          <span
-            data-testid="recording-status"
-            style={{
-              fontSize: '0.7rem',
-              color: '#f44336',
-              letterSpacing: '0.05em',
-              animation: 'pulse 1s ease-in-out infinite',
-            }}
-          >
-            ● grabando...
-          </span>
+          <div style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', gap: '1px', position: 'relative' }}>
+            {waveformData && waveformData.length > 0 ? (
+              waveformData.map((h, i) => (
+                <div
+                  key={i}
+                  data-testid={i === 0 ? 'waveform-bars' : undefined}
+                  style={{
+                    flex: 1,
+                    height: `${Math.max(4, h * 100)}%`,
+                    background: '#f44336',
+                    borderRadius: '1px',
+                    minWidth: '1px',
+                  }}
+                />
+              ))
+            ) : (
+              <span
+                data-testid="recording-status"
+                style={{
+                  fontSize: '0.7rem',
+                  color: '#f44336',
+                  letterSpacing: '0.05em',
+                  animation: 'pulse 1s ease-in-out infinite',
+                }}
+              >
+                ● grabando...
+              </span>
+            )}
+            {/* Pulsing red dot overlay when live waveform is shown */}
+            {waveformData && waveformData.length > 0 && (
+              <span
+                data-testid="recording-status"
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  fontSize: '0.65rem',
+                  color: '#f44336',
+                  animation: 'pulse 1s ease-in-out infinite',
+                  background: '#0d0d0d88',
+                  paddingLeft: '4px',
+                }}
+              >
+                ●
+              </span>
+            )}
+          </div>
         ) : hasLoop ? (
           <div
             data-testid="waveform-bars"

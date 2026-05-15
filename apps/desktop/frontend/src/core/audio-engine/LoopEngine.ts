@@ -51,6 +51,8 @@ export class LoopEngine {
   private processor: ScriptProcessorNode | null = null
   private masterGain: GainNode | null = null
   private monitorGain: GainNode | null = null
+  private analyser: AnalyserNode | null = null
+  private analyserData: Uint8Array<ArrayBuffer> | null = null
 
   private tracks = new Map<number, TrackAudio>()
   private recordingTrack: number | null = null
@@ -58,6 +60,7 @@ export class LoopEngine {
   private recordingStartCtxTime = 0
   private recordingMode: 'fresh' | 'overdub' = 'fresh'
   private monitoring = false
+  private autoMonitoring = false
 
   private listeners = new Set<() => void>()
 
@@ -94,6 +97,12 @@ export class LoopEngine {
     this.monitorGain.gain.value = 0
     this.sourceNode.connect(this.monitorGain)
     this.monitorGain.connect(this.masterGain)
+
+    this.analyser = ctx.createAnalyser()
+    this.analyser.fftSize = 2048
+    this.analyser.smoothingTimeConstant = 0.6
+    this.analyserData = new Uint8Array(this.analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
+    this.sourceNode.connect(this.analyser)
 
     this.processor = ctx.createScriptProcessor(BUFFER_SIZE, 1, 1)
     this.processor.onaudioprocess = (e) => {
@@ -146,9 +155,21 @@ export class LoopEngine {
     return downsampleWaveform(t.buffer.getChannelData(0), WAVEFORM_BARS)
   }
 
+  /**
+   * Returns the current time-domain amplitude data from the input (analyser).
+   * Values are in [0, 255] with 128 as silence — same as getByteTimeDomainData.
+   * Call this in a requestAnimationFrame loop while recording for live waveform.
+   */
+  getTimeDomainData(): Uint8Array<ArrayBuffer> | null {
+    if (!this.analyser || !this.analyserData) return null
+    this.analyser.getByteTimeDomainData(this.analyserData)
+    return this.analyserData
+  }
+
   setMonitoring(enabled: boolean): void {
     if (!this.monitorGain) return
     this.monitoring = enabled
+    this.autoMonitoring = false
     this.monitorGain.gain.value = enabled ? 1 : 0
     this.notify()
   }
@@ -178,6 +199,11 @@ export class LoopEngine {
     this.recordingChunks = []
     this.recordingStartCtxTime = this.context.currentTime
     this.recordingMode = mode
+    // Auto-enable monitoring so the user hears what they're recording.
+    if (!this.monitoring && this.monitorGain) {
+      this.monitorGain.gain.value = 1
+      this.autoMonitoring = true
+    }
     this.notify()
   }
 
@@ -193,6 +219,11 @@ export class LoopEngine {
     const mode = this.recordingMode
     this.recordingTrack = null
     this.recordingMode = 'fresh'
+    // Turn off auto-monitoring (leave manual monitoring untouched).
+    if (this.autoMonitoring && this.monitorGain) {
+      this.monitorGain.gain.value = 0
+      this.autoMonitoring = false
+    }
 
     const captured = mergeChunks(this.recordingChunks)
     this.recordingChunks = []
@@ -300,6 +331,7 @@ export class LoopEngine {
     this.processor?.disconnect()
     this.sourceNode?.disconnect()
     this.monitorGain?.disconnect()
+    this.analyser?.disconnect()
     this.masterGain?.disconnect()
     for (const [, t] of this.tracks) t.gain.disconnect()
     this.tracks.clear()
