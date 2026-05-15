@@ -35,20 +35,30 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     outputs:
-      notes: ${{ steps.cliff.outputs.content }}
+      notes: ${{ steps.cliff.outputs.notes }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: orhun/git-cliff-action@v3
+      # Install git-cliff directly — avoids the git-cliff-action Docker image
+      # which is based on Debian Buster (EOL) and fails with apt-get 404s.
+      - name: Install git-cliff
+        run: |
+          curl -sSfLo /tmp/git-cliff.tar.gz \
+            "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-unknown-linux-musl.tar.gz"
+          tar -xz -C /tmp -f /tmp/git-cliff.tar.gz
+          sudo install -m755 /tmp/git-cliff-2.6.0-x86_64-unknown-linux-musl/git-cliff /usr/local/bin/git-cliff
+          git-cliff --version
+
+      - name: Generate release notes
         id: cliff
-        with:
-          config: cliff.toml
-          # --unreleased: all commits not yet in a tag (works on first release too)
-          # --tag:        set the version header in the generated notes
-          # --strip header: omit the "# Changelog" title line
-          args: --unreleased --tag ${{ needs.prepare.outputs.version }} --strip header
+        run: |
+          {
+            echo 'notes<<CLIFF_EOF'
+            git-cliff --unreleased --tag ${{ needs.prepare.outputs.version }} --strip header --config cliff.toml
+            echo 'CLIFF_EOF'
+          } >> "$GITHUB_OUTPUT"
 
   # ── 3. Build platform binaries ──────────────────────────────────────────────
   build:
@@ -92,13 +102,16 @@ jobs:
       # Windows: NSIS is not pre-installed on the runner — needed for -nsis flag
       - name: Install NSIS (Windows)
         if: runner.os == 'Windows'
-        run: choco install nsis -y
+        run: choco install nsis -y --no-progress
 
-      # Windows: MinGW gcc is required for CGo (Wails uses CGo for WebView2)
-      - name: Add MinGW to PATH (Windows)
+      # Windows: add MinGW (CGo) and NSIS (makensis) to PATH explicitly.
+      # choco shims alone are not reliable for makensis inside wails build.
+      - name: Add MinGW and NSIS to PATH (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        run: echo "C:/msys64/mingw64/bin" >> "$GITHUB_PATH"
+        run: |
+          echo "C:/msys64/mingw64/bin" >> "$GITHUB_PATH"
+          echo "C:/Program Files (x86)/NSIS" >> "$GITHUB_PATH"
 
       # Install all workspace deps from root so pnpm calls inside wails build are no-ops
       - name: Install workspace dependencies
@@ -113,6 +126,11 @@ jobs:
           CGO_ENABLED: 1
           CC: gcc
         run: wails build -platform windows/amd64 -nsis
+
+      - name: List Windows build output
+        if: runner.os == 'Windows'
+        shell: bash
+        run: ls -la apps/desktop/build/bin/ || echo "build/bin not found"
 
       - name: Upload Windows installer
         if: runner.os == 'Windows'
