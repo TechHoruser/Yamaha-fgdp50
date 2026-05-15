@@ -45,7 +45,10 @@ jobs:
         id: cliff
         with:
           config: cliff.toml
-          args: --latest --strip header
+          # --unreleased: all commits not yet in a tag (works on first release too)
+          # --tag:        set the version header in the generated notes
+          # --strip header: omit the "# Changelog" title line
+          args: --unreleased --tag ${{ needs.prepare.outputs.version }} --strip header
 
   # ── 3. Build platform binaries ──────────────────────────────────────────────
   build:
@@ -86,15 +89,29 @@ jobs:
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      # Install all workspace deps from root so the subsequent pnpm calls
-      # inside wails build (frontend:install) are fast no-ops.
+      # Windows: NSIS is not pre-installed on the runner — needed for -nsis flag
+      - name: Install NSIS (Windows)
+        if: runner.os == 'Windows'
+        run: choco install nsis -y
+
+      # Windows: MinGW gcc is required for CGo (Wails uses CGo for WebView2)
+      - name: Add MinGW to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "C:/msys64/mingw64/bin" >> "$GITHUB_PATH"
+
+      # Install all workspace deps from root so pnpm calls inside wails build are no-ops
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
       # ── Windows ──────────────────────────────────────────────────────────
       - name: Build Windows installer
         if: runner.os == 'Windows'
+        shell: bash
         working-directory: apps/desktop
+        env:
+          CGO_ENABLED: 1
+          CC: gcc
         run: wails build -platform windows/amd64 -nsis
 
       - name: Upload Windows installer
