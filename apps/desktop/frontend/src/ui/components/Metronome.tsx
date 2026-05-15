@@ -13,49 +13,52 @@ export const Metronome: React.FC<MetronomeProps> = ({
   onToggle,
   onBpmChange,
 }) => (
-  <div
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.75rem',
-      padding: '0.5rem 1rem',
-      background: '#1e1e1e',
-      border: `1px solid ${active ? '#4caf50' : '#333'}`,
-      borderRadius: '6px',
-    }}
-  >
+  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
     <button
       onClick={onToggle}
       style={{
-        background: active ? '#4caf50' : '#2a2a2a',
+        background: 'transparent',
         border: 'none',
-        borderRadius: '4px',
-        color: '#e0e0e0',
-        padding: '0.25rem 0.5rem',
         cursor: 'pointer',
-        fontSize: '0.75rem',
-        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.35rem',
+        padding: 0,
+        color: active ? '#4a9fff' : '#555',
+        fontSize: '0.7rem',
+        fontWeight: 700,
+        letterSpacing: '0.08em',
       }}
     >
+      <span style={{ fontSize: '0.85rem' }}>♪</span>
       METRO
     </button>
+
     <input
       type="number"
       value={bpm}
       onChange={(e) => onBpmChange?.(Number(e.target.value))}
       min={40}
       max={240}
+      aria-label="BPM"
       style={{
-        width: '60px',
-        background: '#121212',
-        border: '1px solid #444',
-        borderRadius: '4px',
+        width: '52px',
+        background: 'transparent',
+        border: 'none',
+        outline: 'none',
         color: '#e0e0e0',
-        padding: '0.25rem',
-        textAlign: 'center',
-        fontSize: '0.875rem',
-      }}
+        fontSize: '0.85rem',
+        fontWeight: 600,
+        textAlign: 'right',
+        fontVariantNumeric: 'tabular-nums',
+        MozAppearance: 'textfield',
+      } as React.CSSProperties}
     />
-    <span style={{ fontSize: '0.75rem', color: '#888' }}>BPM</span>
+
+    <span style={{ fontSize: '0.7rem', color: '#444', fontWeight: 600 }}>BPM</span>
+
+    <span style={{ fontSize: '0.7rem', color: '#444', letterSpacing: '0.05em' }}>
+      COMPÁS 4/4
+    </span>
   </div>
 )

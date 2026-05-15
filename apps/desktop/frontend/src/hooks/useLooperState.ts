@@ -20,15 +20,17 @@ export function useLooperState() {
 
   const refresh = useCallback(async () => {
     try {
-      const [rawTracks, metronomeActive] = await Promise.all([
+      const [rawTracks, metronomeActive, activeTrack] = await Promise.all([
         WailsApp.GetTracks(),
         WailsApp.IsMetronomeActive(),
+        WailsApp.GetActiveTrack(),
       ])
       if (rawTracks?.length) {
         setState(prev => ({
           ...prev,
           tracks: rawTracks as Track[],
           metronomeActive: metronomeActive ?? prev.metronomeActive,
+          activeTrack: activeTrack ?? prev.activeTrack,
         }))
       }
     } catch {
@@ -55,5 +57,5 @@ export function useLooperState() {
     [refresh],
   )
 
-  return { state, dispatch }
+  return { state, dispatch, refresh }
 }

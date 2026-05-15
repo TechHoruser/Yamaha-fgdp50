@@ -9,37 +9,43 @@ interface TransportBarProps {
   onUndo?: () => void
 }
 
-interface ButtonProps {
+interface TransportButtonProps {
+  icon: string
   label: string
   onClick?: () => void
   active?: boolean
-  variant?: 'default' | 'danger' | 'accent'
+  activeColor?: string
 }
 
-const TransportButton: React.FC<ButtonProps> = ({ label, onClick, active, variant = 'default' }) => {
-  const bg = active
-    ? variant === 'danger' ? '#f44336' : '#4caf50'
-    : '#2a2a2a'
-
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '0.5rem 1rem',
-        background: bg,
-        color: '#e0e0e0',
-        border: '1px solid #444',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        letterSpacing: '0.05em',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
+const TransportButton: React.FC<TransportButtonProps> = ({
+  icon,
+  label,
+  onClick,
+  active = false,
+  activeColor = '#4a9fff',
+}) => (
+  <button
+    onClick={onClick}
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.4rem',
+      padding: '0.45rem 0.85rem',
+      background: active ? `${activeColor}18` : 'transparent',
+      color: active ? activeColor : '#bbb',
+      border: `1px solid ${active ? activeColor : '#2e2e2e'}`,
+      borderRadius: '5px',
+      cursor: 'pointer',
+      fontSize: '0.7rem',
+      fontWeight: 700,
+      letterSpacing: '0.08em',
+      transition: 'border-color 0.1s, color 0.1s',
+    }}
+  >
+    <span style={{ fontSize: '0.75rem' }}>{icon}</span>
+    {label}
+  </button>
+)
 
 export const TransportBar: React.FC<TransportBarProps> = ({
   globalState = 'idle',
@@ -49,11 +55,37 @@ export const TransportBar: React.FC<TransportBarProps> = ({
   onStop,
   onUndo,
 }) => (
-  <div style={{ display: 'flex', gap: '0.5rem' }}>
-    <TransportButton label="PLAY/PAUSE" onClick={onPlay} active={globalState === 'playing'} />
-    <TransportButton label="RECORD" onClick={onRecord} active={globalState === 'recording'} variant="danger" />
-    <TransportButton label="OVERDUB" onClick={onOverdub} active={globalState === 'overdubbing'} />
-    <TransportButton label="STOP" onClick={onStop} variant="danger" />
-    <TransportButton label="UNDO" onClick={onUndo} />
+  <div style={{ display: 'flex', gap: '0.4rem' }}>
+    <TransportButton
+      icon="▶"
+      label="PLAY"
+      onClick={onPlay}
+      active={globalState === 'playing'}
+      activeColor="#4a9fff"
+    />
+    <TransportButton
+      icon="●"
+      label="REC"
+      onClick={onRecord}
+      active={globalState === 'recording'}
+      activeColor="#f44336"
+    />
+    <TransportButton
+      icon="⊕"
+      label="OVERDUB"
+      onClick={onOverdub}
+      active={globalState === 'overdubbing'}
+      activeColor="#f59e0b"
+    />
+    <TransportButton
+      icon="■"
+      label="STOP"
+      onClick={onStop}
+    />
+    <TransportButton
+      icon="↩"
+      label="UNDO"
+      onClick={onUndo}
+    />
   </div>
 )

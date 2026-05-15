@@ -9,6 +9,9 @@ export async function GetTracks() {
 export async function GetState(): Promise<number> {
   return go.GetState?.() ?? 0
 }
+export async function GetActiveTrack(): Promise<number> {
+  return go.GetActiveTrack?.() ?? 1
+}
 export async function IsMetronomeActive(): Promise<boolean> {
   return go.IsMetronomeActive?.() ?? false
 }
