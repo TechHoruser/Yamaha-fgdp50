@@ -72,14 +72,97 @@ curl -s -X POST http://localhost:9001/command \
 
 Es el método más rápido y no requiere escribir scripts.
 
-1. Abrir la **Stream Deck Store** (icono de tienda en la app).
-2. Buscar **"API Ninja"** e instalar.
-3. Arrastrar la acción _API Ninja → HTTP Request_ a cada botón.
-4. Configurar cada botón:
-   - **URL:** `http://localhost:9001/command`
-   - **Method:** `POST`
-   - **Headers:** `Content-Type: application/json`
-   - **Body:** el JSON correspondiente (ver tabla de arriba)
+### Instalación
+
+1. Abrir la **Stream Deck Software** en el ordenador.
+2. Pulsar el icono de la tienda (bolsa de compra) en la esquina superior derecha.
+3. Buscar **"API Ninja"** → pulsar **Install**.
+4. Una vez instalado, en el panel de acciones de la izquierda aparece la categoría **API Ninja**.
+
+### Configuración de un botón
+
+1. Arrastrar la acción **API Ninja → HTTP Request** al botón deseado en el perfil.
+2. En el panel de propiedades de la derecha, rellenar exactamente estos campos:
+
+| Campo | Valor |
+|---|---|
+| **URL** | `http://localhost:9001/command` |
+| **Method** | `POST` |
+| **Content Type** | `application/json` |
+| **Body** | `{"action":"RECORD"}` ← cambiar por la acción del botón |
+
+> El campo **Body** debe ser JSON puro, sin saltos de línea ni comillas extra alrededor. Ejemplo para el botón PLAY/PAUSE: `{"action":"PLAY_PAUSE"}`.
+
+3. El campo **Title** del botón (encima del icono) es opcional; se puede poner el nombre de la acción para identificarlo visualmente.
+
+### Cómo saber que API Ninja está funcionando correctamente
+
+**Paso 1 — Verificar el endpoint antes de tocar el Stream Deck**
+
+Con FGDP Looper abierto, abrir **PowerShell** y ejecutar:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:9001/command" `
+  -ContentType "application/json" -Body '{"action":"PLAY_PAUSE"}'
+```
+
+- **Éxito:** no aparece ningún output (la respuesta es `204 No Content`, que PowerShell no imprime).
+- **Fallo:** aparece un error `connection refused` → la app no está abierta o el firewall bloquea el puerto (ver sección "Verificar que la comunicación funciona").
+
+Si este paso falla, el problema no está en API Ninja sino en la app o el firewall. Resolverlo antes de continuar.
+
+**Paso 2 — Comprobar la respuesta en API Ninja**
+
+API Ninja muestra el resultado del último envío directamente en el icono del botón:
+
+- **Icono verde / sin cambio visible:** el servidor respondió `2xx` → comando recibido correctamente.
+- **Icono rojo o texto de error sobre el botón:** el servidor devolvió un error o no respondió. Los errores más comunes son:
+
+| Indicador en el botón | Causa | Solución |
+|---|---|---|
+| `ERR_CONNECTION_REFUSED` | FGDP Looper no está abierto | Abrir la aplicación primero |
+| `400 Bad Request` | El JSON del campo Body está mal formado | Revisar comillas dobles y que el campo `action` existe |
+| `405 Method Not Allowed` | El campo Method está en `GET` en vez de `POST` | Cambiarlo a `POST` |
+| `404 Not Found` | La URL termina en `/command/` con barra o tiene una ruta diferente | Usar exactamente `http://localhost:9001/command` |
+
+**Paso 3 — Confirmar el efecto en FGDP Looper**
+
+La forma más rápida de confirmar que el botón funciona de extremo a extremo:
+
+1. Asegurarse de que FGDP Looper está en primer plano y visible.
+2. Pulsar el botón del Stream Deck.
+3. Observar la interfaz de FGDP Looper:
+   - `SELECT_TRACK_2` → el borde verde pasa al panel **TRACK 2**.
+   - `PLAY_PAUSE` → el botón **PLAY/PAUSE** de la barra de transporte se ilumina en verde.
+   - `RECORD` → el botón **RECORD** se ilumina en rojo.
+   - `TOGGLE_METRONOME` → el botón **METRO** cambia de color.
+   - `MUTE_ACTIVE` → el panel de la pista activa reduce su opacidad y muestra `MUTED`.
+
+Si la UI de FGDP Looper cambia, la configuración es correcta.
+
+**Paso 4 — Verificar con el log de API Ninja (opcional)**
+
+Algunos builds de API Ninja muestran un log detallado:
+
+1. Hacer clic derecho sobre el botón en el Stream Deck Software.
+2. Si aparece la opción **"Show Log"** o **"Debug"**, abrirla.
+3. Pulsar el botón; en el log debe aparecer una línea similar a:
+   ```
+   POST http://localhost:9001/command → 204
+   ```
+   El código `204` confirma que el servidor recibió y procesó el comando.
+
+### Lista de comprobación rápida
+
+Antes de dar por configurado un botón, verificar cada punto:
+
+- [ ] FGDP Looper está abierto
+- [ ] El test con PowerShell/curl devuelve `204` (ver Paso 1)
+- [ ] El campo **Method** en API Ninja es `POST`, no `GET`
+- [ ] El campo **Content Type** es `application/json`
+- [ ] El campo **Body** contiene JSON válido con comillas dobles: `{"action":"NOMBRE_ACCION"}`
+- [ ] La URL es exactamente `http://localhost:9001/command` (sin barra final)
+- [ ] Al pulsar el botón, la UI de FGDP Looper reacciona visualmente
 
 ---
 
