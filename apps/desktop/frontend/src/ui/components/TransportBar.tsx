@@ -15,6 +15,7 @@ interface TransportButtonProps {
   onClick?: () => void
   active?: boolean
   activeColor?: string
+  pulse?: boolean
 }
 
 const TransportButton: React.FC<TransportButtonProps> = ({
@@ -23,6 +24,7 @@ const TransportButton: React.FC<TransportButtonProps> = ({
   onClick,
   active = false,
   activeColor = '#4a9fff',
+  pulse = false,
 }) => (
   <button
     onClick={onClick}
@@ -31,7 +33,7 @@ const TransportButton: React.FC<TransportButtonProps> = ({
       alignItems: 'center',
       gap: '0.4rem',
       padding: '0.45rem 0.85rem',
-      background: active ? `${activeColor}18` : 'transparent',
+      background: active ? `${activeColor}22` : 'transparent',
       color: active ? activeColor : '#bbb',
       border: `1px solid ${active ? activeColor : '#2e2e2e'}`,
       borderRadius: '5px',
@@ -40,6 +42,7 @@ const TransportButton: React.FC<TransportButtonProps> = ({
       fontWeight: 700,
       letterSpacing: '0.08em',
       transition: 'border-color 0.1s, color 0.1s',
+      animation: pulse ? 'pulse 1s ease-in-out infinite' : undefined,
     }}
   >
     <span style={{ fontSize: '0.75rem' }}>{icon}</span>
@@ -68,6 +71,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
       label="REC"
       onClick={onRecord}
       active={globalState === 'recording'}
+      pulse={globalState === 'recording'}
       activeColor="#f44336"
     />
     <TransportButton
@@ -75,6 +79,7 @@ export const TransportBar: React.FC<TransportBarProps> = ({
       label="OVERDUB"
       onClick={onOverdub}
       active={globalState === 'overdubbing'}
+      pulse={globalState === 'overdubbing'}
       activeColor="#f59e0b"
     />
     <TransportButton

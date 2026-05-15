@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 interface TrackPanelProps {
   trackId: number
@@ -8,22 +8,22 @@ interface TrackPanelProps {
   hasLoop?: boolean
   recording?: boolean
   bpm?: number
+  waveformData?: number[] | null
   onSelect?: () => void
   onMute?: () => void
+  onVolumeChange?: (volume: number) => void
   onNameChange?: (name: string) => void
 }
 
 const BARS_OPTIONS = ['1 bar', '2 bars', '4 bars', '8 bars', '16 bars', '32 bars']
+const FAKE_BAR_COUNT = 80
 
-// Deterministic waveform heights per trackId
-function useWaveform(trackId: number, count = 80): number[] {
-  return useMemo(() =>
-    Array.from({ length: count }, (_, i) => {
-      const a = Math.sin(trackId * 2.1 + i * 0.35) * 0.5 + 0.5
-      const b = Math.sin(trackId * 1.3 + i * 0.72) * 0.3 + 0.7
-      return Math.max(0.06, Math.min(1, a * b))
-    }),
-  [trackId])
+function syntheticWaveform(trackId: number, count = FAKE_BAR_COUNT): number[] {
+  return Array.from({ length: count }, (_, i) => {
+    const a = Math.sin(trackId * 2.1 + i * 0.35) * 0.5 + 0.5
+    const b = Math.sin(trackId * 1.3 + i * 0.72) * 0.3 + 0.7
+    return Math.max(0.06, Math.min(1, a * b))
+  })
 }
 
 function barsToSeconds(barsLabel: string, bpm: number): string {
@@ -43,17 +43,26 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
   hasLoop = false,
   recording = false,
   bpm = 120,
+  waveformData = null,
   onSelect,
   onMute,
+  onVolumeChange,
   onNameChange,
 }) => {
   const [volume, setVolume] = useState(75)
   const [bars, setBars] = useState('4 bars')
-  const waveform = useWaveform(trackId)
+  const synthetic = useMemo(() => syntheticWaveform(trackId), [trackId])
 
-  // Alternate blue / orange per track id
+  // Push initial volume to the engine on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { onVolumeChange?.(volume) }, [])
+
   const waveColor = trackId % 2 === 1 ? '#4a9fff' : '#f59e0b'
   const trackNum = String(trackId).padStart(2, '0')
+  const waveform = waveformData && waveformData.length > 0 ? waveformData : synthetic
+  // Normalise real audio waveforms (peaks often < 1)
+  const peak = waveformData ? Math.max(0.01, ...waveformData) : 1
+  const normalised = waveformData ? waveform.map((v) => v / peak) : waveform
   const duration = hasLoop ? barsToSeconds(bars, bpm) : '—'
 
   return (
@@ -75,7 +84,6 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         userSelect: 'none',
       }}
     >
-      {/* Track number */}
       <span
         style={{
           fontSize: '0.65rem',
@@ -88,7 +96,6 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         {trackNum}
       </span>
 
-      {/* Track name */}
       <input
         aria-label={`Nombre pista ${trackId}`}
         value={trackName}
@@ -108,7 +115,6 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         }}
       />
 
-      {/* Mute button */}
       <button
         aria-label="Mute"
         aria-pressed={muted}
@@ -130,7 +136,6 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         M
       </button>
 
-      {/* Solo button (UI only) */}
       <button
         aria-label="Solo"
         onClick={(e) => e.stopPropagation()}
@@ -151,14 +156,17 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         S
       </button>
 
-      {/* Volume slider */}
       <input
         type="range"
         min={0}
         max={100}
         value={volume}
         aria-label="Volumen"
-        onChange={(e) => setVolume(Number(e.target.value))}
+        onChange={(e) => {
+          const v = Number(e.target.value)
+          setVolume(v)
+          onVolumeChange?.(v)
+        }}
         onClick={(e) => e.stopPropagation()}
         style={{ width: '68px', accentColor: waveColor, flexShrink: 0 }}
       />
@@ -175,7 +183,6 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         {volume}
       </span>
 
-      {/* Waveform / status */}
       <div
         data-testid="waveform-area"
         style={{
@@ -187,17 +194,35 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
           minWidth: 0,
         }}
       >
-        {hasLoop ? (
+        {recording ? (
+          <span
+            data-testid="recording-status"
+            style={{
+              fontSize: '0.7rem',
+              color: '#f44336',
+              letterSpacing: '0.05em',
+              animation: 'pulse 1s ease-in-out infinite',
+            }}
+          >
+            ● grabando...
+          </span>
+        ) : hasLoop ? (
           <div
             data-testid="waveform-bars"
-            style={{ display: 'flex', alignItems: 'center', gap: '1px', width: '100%', height: '100%' }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1px',
+              width: '100%',
+              height: '100%',
+            }}
           >
-            {waveform.map((h, i) => (
+            {normalised.map((h, i) => (
               <div
                 key={i}
                 style={{
                   flex: 1,
-                  height: `${h * 100}%`,
+                  height: `${Math.max(4, h * 100)}%`,
                   background: waveColor,
                   borderRadius: '1px',
                   minWidth: '1px',
@@ -205,13 +230,6 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
               />
             ))}
           </div>
-        ) : recording ? (
-          <span
-            data-testid="recording-status"
-            style={{ fontSize: '0.7rem', color: '#f44336', letterSpacing: '0.05em' }}
-          >
-            ● grabando...
-          </span>
         ) : (
           <span
             data-testid="idle-status"
@@ -235,7 +253,6 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         )}
       </div>
 
-      {/* Duration */}
       <span
         style={{
           fontSize: '0.65rem',
@@ -249,7 +266,6 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         {duration}
       </span>
 
-      {/* Bars dropdown */}
       <select
         value={bars}
         onChange={(e) => setBars(e.target.value)}

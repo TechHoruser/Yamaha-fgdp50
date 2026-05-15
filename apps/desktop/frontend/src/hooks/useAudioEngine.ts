@@ -1,38 +1,42 @@
 import { useEffect, useRef, useState } from 'react'
-import { AudioEngine } from '../core/audio-engine'
+import { LoopEngine } from '../core/audio-engine'
 
 export function useAudioEngine(deviceId: string) {
+  const engineRef = useRef<LoopEngine | null>(null)
+  const [engine, setEngine] = useState<LoopEngine | null>(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const engineRef = useRef<AudioEngine | null>(null)
+  const [, setVersion] = useState(0)
 
   useEffect(() => {
     if (!deviceId) return
-
     let cancelled = false
+    const e = new LoopEngine()
+    const unsubscribe = e.subscribe(() => setVersion((v) => v + 1))
 
-    const engine = new AudioEngine({ sampleRate: 44100, bufferSize: 256, inputDeviceId: deviceId })
-    engine
-      .init()
+    e.init({ sampleRate: 44100, inputDeviceId: deviceId })
       .then(() => {
-        if (cancelled) { engine.destroy(); return }
-        engineRef.current = engine
+        if (cancelled) { e.destroy(); return }
+        engineRef.current = e
+        setEngine(e)
         setReady(true)
         setError(null)
       })
-      .catch(e => {
+      .catch((err) => {
         if (cancelled) return
-        setError(e instanceof Error ? e.message : 'Error al inicializar audio')
+        setError(err instanceof Error ? err.message : 'Error al inicializar audio')
         setReady(false)
       })
 
     return () => {
       cancelled = true
-      engineRef.current?.destroy()
+      unsubscribe()
       engineRef.current = null
+      setEngine(null)
       setReady(false)
+      e.destroy()
     }
   }, [deviceId])
 
-  return { engine: engineRef.current, ready, error }
+  return { engine, ready, error }
 }

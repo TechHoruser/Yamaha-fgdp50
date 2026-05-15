@@ -1,4 +1,6 @@
 export { AudioEngine } from './AudioEngine'
 export type { AudioEngineConfig } from './AudioEngine'
+export { LoopEngine } from './LoopEngine'
+export type { LoopEngineConfig } from './LoopEngine'
 export { beatsToSeconds, secondsToBeats, quantizeToGrid } from './sync'
 export type { ClockSync } from './sync'
