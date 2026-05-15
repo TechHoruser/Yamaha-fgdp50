@@ -1,0 +1,33 @@
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/vendor/
+/go.sum
+
+# Node/pnpm
+node_modules/
+dist/
+.pnpm-store/
+*.local
+
+# Wails build output
+apps/desktop/build/bin/
+!apps/desktop/frontend/dist/
+apps/desktop/frontend/dist/*
+!apps/desktop/frontend/dist/.gitkeep
+apps/desktop/frontend/node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+*.swo

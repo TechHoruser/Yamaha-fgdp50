@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**', 'release/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Frontend: typecheck · lint · test ──────────────────────────────────────
+  frontend:
+    name: Frontend — typecheck, lint & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+  # ── Go: vet · test (fast, Ubuntu only) ─────────────────────────────────────
+  go-test:
+    name: Go — vet & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/desktop/go.mod
+          cache: true
+
+      - name: Go vet
+        working-directory: apps/desktop
+        run: go vet ./...
+
+      - name: Go test
+        working-directory: apps/desktop
+        run: go test -race ./...
+
+  # ── Go: build check across platforms (ensures cross-compilation) ────────────
+  go-build:
+    name: Go — build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/desktop/go.mod
+          cache: true
+
+      - name: Go build
+        working-directory: apps/desktop
+        run: go build -v ./...

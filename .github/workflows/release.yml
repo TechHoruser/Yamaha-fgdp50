@@ -1,0 +1,151 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - 'release/v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ── 1. Extract version from branch name ────────────────────────────────────
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
+    steps:
+      - id: ver
+        name: Extract version from branch
+        run: |
+          # refs/heads/release/v0.0.1  →  v0.0.1
+          VERSION="${GITHUB_REF_NAME#release/}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if echo "$VERSION" | grep -Eqi '\-(alpha|beta|rc)'; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── 2. Generate release notes with git-cliff ────────────────────────────────
+  changelog:
+    name: CHANGELOG
+    needs: prepare
+    runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.cliff.outputs.content }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: orhun/git-cliff-action@v3
+        id: cliff
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+
+  # ── 3. Build platform binaries ──────────────────────────────────────────────
+  build:
+    name: Build — ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows: NSIS installer (.exe)
+          - name: Windows x64
+            os: windows-latest
+            platform: windows/amd64
+
+          # macOS: universal fat binary (.app → .zip) — works on Intel & Apple Silicon
+          - name: macOS Universal
+            os: macos-latest
+            platform: darwin/universal
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/desktop/go.mod
+          cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      # Install all workspace deps from root so the subsequent pnpm calls
+      # inside wails build (frontend:install) are fast no-ops.
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Windows ──────────────────────────────────────────────────────────
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        working-directory: apps/desktop
+        run: wails build -platform windows/amd64 -nsis
+
+      - name: Upload Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          # NSIS produces fgdp-looper-amd64-installer.exe
+          path: apps/desktop/build/bin/*-installer.exe
+          if-no-files-found: error
+
+      # ── macOS ─────────────────────────────────────────────────────────────
+      - name: Build macOS universal app
+        if: runner.os == 'macOS'
+        working-directory: apps/desktop
+        run: wails build -platform darwin/universal
+
+      - name: Zip macOS app bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd apps/desktop/build/bin
+          APP=$(ls -d *.app | head -1)
+          zip -r "fgdp-looper-macos-universal.zip" "$APP"
+          echo "Packaged: $APP → fgdp-looper-macos-universal.zip"
+
+      - name: Upload macOS app
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: apps/desktop/build/bin/fgdp-looper-macos-universal.zip
+          if-no-files-found: error
+
+  # ── 4. Publish GitHub Release ────────────────────────────────────────────────
+  release:
+    name: Publish Release
+    needs: [prepare, changelog, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Create GitHub Release ${{ needs.prepare.outputs.version }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: FGDP Looper ${{ needs.prepare.outputs.version }}
+          body: ${{ needs.changelog.outputs.notes }}
+          files: dist/**
+          draft: false
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
