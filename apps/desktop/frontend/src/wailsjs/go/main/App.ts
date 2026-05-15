@@ -45,3 +45,18 @@ export async function ClearActiveTrack(): Promise<void> {
 export async function ToggleMetronome(): Promise<void> {
   return go.ToggleMetronome?.()
 }
+
+export interface UpdateInfo {
+  hasUpdate: boolean
+  latestVersion: string
+  currentVersion: string
+  downloadURL: string
+  releaseNotes: string
+}
+
+export async function CheckForUpdates(): Promise<UpdateInfo> {
+  return go.CheckForUpdates?.() ?? { hasUpdate: false, latestVersion: '', currentVersion: '', downloadURL: '', releaseNotes: '' }
+}
+export async function DownloadAndInstallUpdate(downloadURL: string): Promise<void> {
+  return go.DownloadAndInstallUpdate?.(downloadURL)
+}

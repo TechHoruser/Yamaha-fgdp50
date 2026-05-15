@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    branches:
-      - 'release/v*'
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -18,10 +18,10 @@ jobs:
       prerelease: ${{ steps.ver.outputs.prerelease }}
     steps:
       - id: ver
-        name: Extract version from branch
+        name: Extract version from tag
         run: |
-          # refs/heads/release/v0.0.1  →  v0.0.1
-          VERSION="${GITHUB_REF_NAME#release/}"
+          # GITHUB_REF_NAME is already the tag, e.g. v0.0.1
+          VERSION="${GITHUB_REF_NAME}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           if echo "$VERSION" | grep -Eqi '\-(alpha|beta|rc)'; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
@@ -129,7 +129,7 @@ jobs:
         env:
           CGO_ENABLED: 1
           CC: gcc
-        run: wails build -platform windows/amd64 -nsis
+        run: wails build -platform windows/amd64 -nsis -ldflags "-X main.Version=${{ needs.prepare.outputs.version }}"
 
       - name: List Windows build output
         if: runner.os == 'Windows'
@@ -149,7 +149,7 @@ jobs:
       - name: Build macOS universal app
         if: runner.os == 'macOS'
         working-directory: apps/desktop
-        run: wails build -platform darwin/universal
+        run: wails build -platform darwin/universal -ldflags "-X main.Version=${{ needs.prepare.outputs.version }}"
 
       - name: Zip macOS app bundle
         if: runner.os == 'macOS'
