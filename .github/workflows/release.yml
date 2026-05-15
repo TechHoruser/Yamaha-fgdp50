@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    name: Generate CHANGELOG
+    runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.cliff.outputs.content }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: orhun/git-cliff-action@v3
+        id: cliff
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+
+  build:
+    name: Build — ${{ matrix.target }}
+    needs: changelog
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: windows/amd64
+            runner: windows-latest
+            artifact: fgdp-looper-windows-amd64.exe
+          - target: darwin/amd64
+            runner: macos-latest
+            artifact: fgdp-looper-macos-amd64
+          - target: darwin/arm64
+            runner: macos-latest
+            artifact: fgdp-looper-macos-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/desktop/go.mod
+          cache: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend deps
+        working-directory: apps/desktop/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Wails app
+        working-directory: apps/desktop
+        env:
+          GOARCH: ${{ contains(matrix.target, 'arm64') && 'arm64' || 'amd64' }}
+        run: wails build -platform ${{ matrix.target }} -o ${{ matrix.artifact }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: apps/desktop/build/bin/${{ matrix.artifact }}
+
+  release:
+    name: Create GitHub Release
+    needs: [changelog, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ needs.changelog.outputs.notes }}
+          files: dist/*
