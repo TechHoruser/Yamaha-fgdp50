@@ -11,7 +11,8 @@
     "dev": "pnpm --filter @fgdp-looper/desktop dev",
     "build": "pnpm --filter @fgdp-looper/desktop build",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",

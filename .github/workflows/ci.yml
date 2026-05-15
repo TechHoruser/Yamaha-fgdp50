@@ -25,6 +25,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
+      - run: pnpm test
 
   go-build:
     name: Go — vet & build (${{ matrix.os }})
@@ -47,3 +48,7 @@ jobs:
       - name: Go build (verify compilation)
         working-directory: apps/desktop
         run: go build -v ./...
+
+      - name: Go test
+        working-directory: apps/desktop
+        run: go test ./...

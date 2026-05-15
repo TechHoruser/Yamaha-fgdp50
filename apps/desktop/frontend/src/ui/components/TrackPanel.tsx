@@ -5,6 +5,7 @@ interface TrackPanelProps {
   active?: boolean
   muted?: boolean
   hasLoop?: boolean
+  onClick?: () => void
 }
 
 export const TrackPanel: React.FC<TrackPanelProps> = ({
@@ -12,12 +13,17 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
   active = false,
   muted = false,
   hasLoop = false,
+  onClick,
 }) => {
   const borderColor = active ? '#4caf50' : '#333'
   const opacity = muted ? 0.4 : 1
 
   return (
     <div
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
       style={{
         border: `2px solid ${borderColor}`,
         borderRadius: '8px',
@@ -27,6 +33,7 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         display: 'flex',
         flexDirection: 'column',
         gap: '0.5rem',
+        cursor: onClick ? 'pointer' : 'default',
       }}
     >
       <span style={{ fontWeight: 700, fontSize: '0.875rem' }}>TRACK {trackId}</span>
