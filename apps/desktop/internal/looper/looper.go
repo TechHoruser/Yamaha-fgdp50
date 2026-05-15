@@ -100,3 +100,31 @@ func (e *Engine) ToggleMetronome() {
 	defer e.mu.Unlock()
 	e.metronome = !e.metronome
 }
+
+func (e *Engine) PrevTrack() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.activeTrack == 0 {
+		e.activeTrack = len(e.tracks) - 1
+	} else {
+		e.activeTrack--
+	}
+}
+
+func (e *Engine) NextTrack() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.activeTrack = (e.activeTrack + 1) % len(e.tracks)
+}
+
+func (e *Engine) GetState() State {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.state
+}
+
+func (e *Engine) IsMetronomeActive() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.metronome
+}

@@ -69,3 +69,8 @@ func (a *App) ClearActiveTrack() {
 func (a *App) ToggleMetronome() {
 	a.looperEngine.ToggleMetronome()
 }
+
+func (a *App) PrevTrack() { a.looperEngine.PrevTrack() }
+func (a *App) NextTrack() { a.looperEngine.NextTrack() }
+func (a *App) GetState() looper.State { return a.looperEngine.GetState() }
+func (a *App) IsMetronomeActive() bool { return a.looperEngine.IsMetronomeActive() }

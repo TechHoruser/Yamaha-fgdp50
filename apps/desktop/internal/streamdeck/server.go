@@ -71,6 +71,10 @@ func (s *Server) dispatch(cmd Command) {
 		s.engine.SelectTrack(3)
 	case ActionSelectTrack4:
 		s.engine.SelectTrack(4)
+	case ActionPrevTrack:
+		s.engine.PrevTrack()
+	case ActionNextTrack:
+		s.engine.NextTrack()
 	case ActionUndo:
 		s.engine.Undo()
 	case ActionMuteActive:
