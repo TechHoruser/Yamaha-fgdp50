@@ -63,14 +63,10 @@ func (s *Server) handleCommand(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) dispatch(cmd Command) {
 	switch cmd.Action {
-	case ActionSelectTrack1:
-		s.engine.SelectTrack(1)
-	case ActionSelectTrack2:
-		s.engine.SelectTrack(2)
-	case ActionSelectTrack3:
-		s.engine.SelectTrack(3)
-	case ActionSelectTrack4:
-		s.engine.SelectTrack(4)
+	case ActionSelectTrack:
+		if n, ok := payloadInt(cmd.Payload); ok {
+			s.engine.SelectTrack(n)
+		}
 	case ActionPrevTrack:
 		s.engine.PrevTrack()
 	case ActionNextTrack:
@@ -83,6 +79,8 @@ func (s *Server) dispatch(cmd Command) {
 		s.engine.ClearActive()
 	case ActionToggleMetronome:
 		s.engine.ToggleMetronome()
+	case ActionMergeWithBelow:
+		s.engine.MergeWithBelow()
 	case ActionPlayPause:
 		s.engine.Play()
 	case ActionRecord:
@@ -92,4 +90,15 @@ func (s *Server) dispatch(cmd Command) {
 	case ActionStop:
 		s.engine.Stop()
 	}
+}
+
+// payloadInt extracts an integer from a JSON-decoded payload (float64 from JSON, or int).
+func payloadInt(p any) (int, bool) {
+	switch v := p.(type) {
+	case float64:
+		return int(v), true
+	case int:
+		return v, true
+	}
+	return 0, false
 }

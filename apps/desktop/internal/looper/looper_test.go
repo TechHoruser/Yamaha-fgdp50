@@ -152,3 +152,50 @@ func TestIsMetronomeActive(t *testing.T) {
 		t.Errorf("want true after toggle")
 	}
 }
+
+func TestMergeWithBelow_combinesLoopsAndClearsSource(t *testing.T) {
+	e := NewEngine()
+
+	// Record on track 1 (index 0) and track 2 (index 1).
+	e.SelectTrack(1)
+	e.Record()
+	e.Stop()
+	e.SelectTrack(2)
+	e.Record()
+	e.Stop()
+
+	// Merge track 1 (active) with track 2 (below).
+	e.SelectTrack(1)
+	e.MergeWithBelow()
+
+	if !e.tracks[0].HasLoop {
+		t.Errorf("want active track to keep hasLoop=true after merge")
+	}
+	if e.tracks[1].HasLoop || e.tracks[1].Muted || e.tracks[1].State != TrackIdle {
+		t.Errorf("want below track cleared after merge, got %+v", e.tracks[1])
+	}
+}
+
+func TestMergeWithBelow_noOpWhenBothEmpty(t *testing.T) {
+	e := NewEngine()
+	e.MergeWithBelow()
+	if e.tracks[0].HasLoop {
+		t.Errorf("want no loop created when both tracks are empty")
+	}
+}
+
+func TestMergeWithBelow_wrapsAroundLastTrack(t *testing.T) {
+	e := NewEngine()
+	// Give track 4 (last) a loop, then merge with track 1 (wraps).
+	e.SelectTrack(4)
+	e.Record()
+	e.Stop()
+	e.MergeWithBelow()
+
+	if !e.tracks[3].HasLoop {
+		t.Errorf("want last track to keep hasLoop=true after merge")
+	}
+	if e.tracks[0].HasLoop {
+		t.Errorf("want first track (below, was empty) to remain empty")
+	}
+}

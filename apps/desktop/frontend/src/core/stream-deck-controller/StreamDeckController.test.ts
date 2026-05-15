@@ -36,8 +36,8 @@ describe('StreamDeckController', () => {
 
   it('includes payload when provided', async () => {
     const c = new StreamDeckController()
-    await c.send({ action: StreamDeckAction.SelectTrack1, payload: { track: 1 } })
+    await c.send({ action: StreamDeckAction.SelectTrack, payload: 1 })
     const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string)
-    expect(body.payload).toEqual({ track: 1 })
+    expect(body.payload).toEqual(1)
   })
 })

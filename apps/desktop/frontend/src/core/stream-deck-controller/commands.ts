@@ -1,19 +1,17 @@
 export enum StreamDeckAction {
-  // Row 1 — Direct track selection
-  SelectTrack1 = 'SELECT_TRACK_1',
-  SelectTrack2 = 'SELECT_TRACK_2',
-  SelectTrack3 = 'SELECT_TRACK_3',
-  SelectTrack4 = 'SELECT_TRACK_4',
+  // Track selection (send track number as payload)
+  SelectTrack = 'SELECT_TRACK',
   Undo = 'UNDO',
 
-  // Row 2 — Active track actions
+  // Active track actions
   PrevTrack = 'PREV_TRACK',
   NextTrack = 'NEXT_TRACK',
   MuteActive = 'MUTE_ACTIVE',
   ClearActive = 'CLEAR_ACTIVE',
   ToggleMetronome = 'TOGGLE_METRONOME',
+  MergeWithBelow = 'MERGE_WITH_BELOW',
 
-  // Row 3 — Transport
+  // Transport
   PlayPause = 'PLAY_PAUSE',
   Record = 'RECORD',
   Overdub = 'OVERDUB',
@@ -26,8 +24,26 @@ export interface StreamDeckCommand {
   payload?: unknown
 }
 
-export const STREAM_DECK_LAYOUT: StreamDeckAction[][] = [
-  [StreamDeckAction.SelectTrack1, StreamDeckAction.SelectTrack2, StreamDeckAction.SelectTrack3, StreamDeckAction.SelectTrack4, StreamDeckAction.Undo],
-  [StreamDeckAction.PrevTrack, StreamDeckAction.NextTrack, StreamDeckAction.MuteActive, StreamDeckAction.ClearActive, StreamDeckAction.ToggleMetronome],
-  [StreamDeckAction.PlayPause, StreamDeckAction.Record, StreamDeckAction.Overdub, StreamDeckAction.Stop, StreamDeckAction.Shift],
+export const STREAM_DECK_LAYOUT: StreamDeckCommand[][] = [
+  [
+    { action: StreamDeckAction.SelectTrack, payload: 1 },
+    { action: StreamDeckAction.SelectTrack, payload: 2 },
+    { action: StreamDeckAction.SelectTrack, payload: 3 },
+    { action: StreamDeckAction.SelectTrack, payload: 4 },
+    { action: StreamDeckAction.Undo },
+  ],
+  [
+    { action: StreamDeckAction.PrevTrack },
+    { action: StreamDeckAction.NextTrack },
+    { action: StreamDeckAction.MuteActive },
+    { action: StreamDeckAction.ClearActive },
+    { action: StreamDeckAction.ToggleMetronome },
+  ],
+  [
+    { action: StreamDeckAction.PlayPause },
+    { action: StreamDeckAction.Record },
+    { action: StreamDeckAction.Overdub },
+    { action: StreamDeckAction.Stop },
+    { action: StreamDeckAction.Shift },
+  ],
 ]
