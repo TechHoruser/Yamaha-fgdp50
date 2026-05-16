@@ -35,34 +35,19 @@ jobs:
     needs: prepare
     runs-on: ubuntu-latest
     outputs:
-      notes: ${{ steps.cliff.outputs.notes }}
+      notes: ${{ steps.cliff.outputs.content }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Install git-cliff
-        run: |
-          # Fetch latest release tag from GitHub API
-          TAG=$(curl -sSf https://api.github.com/repos/orhun/git-cliff/releases/latest \
-            | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/')
-          VER="${TAG#v}"
-          curl -sSfLo /tmp/gc.tar.gz \
-            "https://github.com/orhun/git-cliff/releases/download/${TAG}/git-cliff-${VER}-x86_64-unknown-linux-musl.tar.gz"
-          tar -xz -C /tmp -f /tmp/gc.tar.gz
-          # Locate the binary regardless of the directory structure inside the archive
-          BINARY=$(find /tmp -maxdepth 3 -name "git-cliff" -type f | head -1)
-          sudo install -m755 "$BINARY" /usr/local/bin/git-cliff
-          git-cliff --version
-
       - name: Generate release notes
         id: cliff
-        run: |
-          {
-            echo 'notes<<CLIFF_EOF'
-            git-cliff --unreleased --tag ${{ needs.prepare.outputs.version }} --strip header
-            echo 'CLIFF_EOF'
-          } >> "$GITHUB_OUTPUT"
+        uses: orhun/git-cliff-action@v3
+        with:
+          args: --unreleased --tag ${{ needs.prepare.outputs.version }} --strip header
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── 3. Build platform binaries ──────────────────────────────────────────────
   build:
