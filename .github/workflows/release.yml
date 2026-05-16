@@ -43,7 +43,7 @@ jobs:
 
       - name: Generate release notes
         id: cliff
-        uses: orhun/git-cliff-action@v3
+        uses: orhun/git-cliff-action@v4
         with:
           args: --unreleased --tag ${{ needs.prepare.outputs.version }} --strip header
         env:
