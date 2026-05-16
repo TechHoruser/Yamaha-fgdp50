@@ -18,7 +18,6 @@ export class AudioEngine {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: this.config.inputDeviceId ? { exact: this.config.inputDeviceId } : undefined,
-        sampleRate: this.config.sampleRate,
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,

@@ -18,7 +18,7 @@ const DEFAULT_TRACK_NAMES: Record<number, string> = {
 }
 
 const App: React.FC = () => {
-  const { state, dispatch, refresh } = useLooperState()
+  const { state, dispatch, refresh, selectTrack } = useLooperState()
   const {
     devices, selectedId, setSelectedId, hasPermission,
     requestPermission, refresh: refreshDevices,
@@ -71,7 +71,7 @@ const App: React.FC = () => {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
   }, [isRecording, engine])
 
-  const handleSelectTrack = (id: number) => dispatch('SelectTrack', id)
+  const handleSelectTrack = (id: number) => selectTrack(id)
 
   const handleMuteTrack = useCallback(async (id: number) => {
     const wasMuted = state.tracks.find((t) => t.id === id)?.muted ?? false

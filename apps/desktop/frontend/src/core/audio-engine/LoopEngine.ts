@@ -78,7 +78,6 @@ export class LoopEngine {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: config.inputDeviceId ? { exact: config.inputDeviceId } : undefined,
-        sampleRate: config.sampleRate,
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,
@@ -325,6 +324,30 @@ export class LoopEngine {
 
   /** Same as clearTrack — undo is a single-level "remove loop" today. */
   undoTrack(trackId: number): void { this.clearTrack(trackId) }
+
+  async updateInputDevice(deviceId: string): Promise<void> {
+    if (!this.context) throw new Error('Engine not initialized')
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+    })
+    this.sourceNode?.disconnect()
+    this.mediaStream?.getTracks().forEach((t) => t.stop())
+    this.mediaStream = stream
+    this.sourceNode = this.context.createMediaStreamSource(stream)
+    this.sourceNode.connect(this.monitorGain!)
+    this.sourceNode.connect(this.analyser!)
+    this.sourceNode.connect(this.processor!)
+    // Sink needed to keep ScriptProcessor alive
+    const sink = this.context.createGain()
+    sink.gain.value = 0
+    this.processor!.connect(sink)
+    sink.connect(this.context.destination)
+  }
 
   async destroy(): Promise<void> {
     this.stopAll()

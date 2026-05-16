@@ -7,7 +7,9 @@ export function useAudioEngine(deviceId: string) {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, setVersion] = useState(0)
+  const initializedRef = useRef(false)
 
+  // Initialize engine once on first valid deviceId
   useEffect(() => {
     if (!deviceId) return
     let cancelled = false
@@ -18,6 +20,7 @@ export function useAudioEngine(deviceId: string) {
       .then(() => {
         if (cancelled) { e.destroy(); return }
         engineRef.current = e
+        initializedRef.current = true
         setEngine(e)
         setReady(true)
         setError(null)
@@ -31,11 +34,24 @@ export function useAudioEngine(deviceId: string) {
     return () => {
       cancelled = true
       unsubscribe()
+      initializedRef.current = false
       engineRef.current = null
       setEngine(null)
       setReady(false)
       e.destroy()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Swap input stream when deviceId changes after initialization
+  useEffect(() => {
+    if (!deviceId || !initializedRef.current || !engineRef.current) return
+    engineRef.current
+      .updateInputDevice(deviceId)
+      .then(() => setError(null))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Error al cambiar dispositivo de audio')
+      })
   }, [deviceId])
 
   return { engine, ready, error }

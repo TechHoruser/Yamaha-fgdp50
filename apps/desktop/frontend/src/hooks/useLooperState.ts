@@ -57,5 +57,13 @@ export function useLooperState() {
     [refresh],
   )
 
-  return { state, dispatch, refresh }
+  const selectTrack = useCallback(
+    (id: number) => {
+      setState((prev) => ({ ...prev, activeTrack: id }))
+      WailsApp.SelectTrack(id).catch(() => {})
+    },
+    [],
+  )
+
+  return { state, dispatch, refresh, selectTrack }
 }
