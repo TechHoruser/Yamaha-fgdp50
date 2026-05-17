@@ -10,7 +10,7 @@ import { useLooperState } from './hooks/useLooperState'
 import { useAudioDevices } from './hooks/useAudioDevices'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { useAutoUpdate } from './hooks/useAutoUpdate'
-import { useMidiInput, type MidiNoteEvent } from './hooks/useMidiInput'
+import { useMidiInput } from './hooks/useMidiInput'
 import * as WailsApp from './wailsjs/go/main/App'
 
 const NAMES_KEY = 'fgdp-looper.trackNames'
@@ -199,23 +199,10 @@ const App: React.FC = () => {
   }, [engine, dispatch, state.tracks])
 
   // ── MIDI input ────────────────────────────────────────────────────
-  // The FGDP-50 sends Note On per pad on channel 10. We map the lowest
-  // pad of the kit (kick, MIDI note 36) to "toggle record on the active
-  // track" so users can trigger the looper hands-free. Other pads simply
-  // pass through — the actual audio they generate is captured by the
-  // audio engine like any other input sound.
-  const onMidiNote = useCallback((evt: MidiNoteEvent) => {
-    if (evt.type !== 'noteon') return
-    if (evt.note === 36) {
-      handleRecord()
-    } else if (evt.note === 38) {
-      handlePlay()
-    } else if (evt.note === 40) {
-      handleStop()
-    }
-  }, [handleRecord, handlePlay, handleStop])
-
-  const midi = useMidiInput({ onNote: onMidiNote })
+  // El hook detecta el FGDP-50 y muestra actividad en el selector MIDI.
+  // Las notas no disparan acciones del looper — el usuario controla el
+  // looper desde los botones de la UI o el teclado, no desde los pads.
+  const midi = useMidiInput({})
 
   return (
     <div
