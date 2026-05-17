@@ -59,14 +59,17 @@ export class LoopEngine {
   private mediaStream: MediaStream | null = null
   private sourceNode: MediaStreamAudioSourceNode | null = null
   private processor: ScriptProcessorNode | null = null
-  // The silent sink keeps the ScriptProcessor alive in the audio graph even when
-  // nothing else is connected downstream. Stored as a field so updateInputDevice
-  // can re-use the same node instead of creating a dangling local variable.
   private processorSink: GainNode | null = null
   private masterGain: GainNode | null = null
   private monitorGain: GainNode | null = null
+  // Input analyser: taps the raw microphone signal.
   private analyser: AnalyserNode | null = null
   private analyserData: Uint8Array<ArrayBuffer> | null = null
+  // Output analyser: inserted between masterGain and destination so we can
+  // measure the level of everything being played back (tracks + monitor).
+  private outputAnalyser: AnalyserNode | null = null
+  // Test oscillator — null when not playing.
+  private testToneOsc: OscillatorNode | null = null
 
   private tracks = new Map<number, TrackAudio>()
   private recordingTrack: number | null = null
@@ -75,6 +78,7 @@ export class LoopEngine {
   private recordingMode: 'fresh' | 'overdub' = 'fresh'
   private monitoring = false
   private autoMonitoring = false
+  private monitorVolume = 1.0
 
   private listeners = new Set<() => void>()
 
@@ -109,16 +113,24 @@ export class LoopEngine {
 
     this.masterGain = ctx.createGain()
     this.masterGain.gain.value = 1
-    this.masterGain.connect(ctx.destination)
+
+    // Output analyser sits between masterGain and speakers so it measures
+    // everything being played back (tracks + monitor passthrough).
+    this.outputAnalyser = ctx.createAnalyser()
+    this.outputAnalyser.fftSize = 2048
+    this.outputAnalyser.smoothingTimeConstant = 0.15
+    this.masterGain.connect(this.outputAnalyser)
+    this.outputAnalyser.connect(ctx.destination)
 
     this.monitorGain = ctx.createGain()
     this.monitorGain.gain.value = 0
     this.sourceNode.connect(this.monitorGain)
     this.monitorGain.connect(this.masterGain)
 
+    // Input analyser taps the raw mic signal before any gain processing.
     this.analyser = ctx.createAnalyser()
     this.analyser.fftSize = 2048
-    this.analyser.smoothingTimeConstant = 0.6
+    this.analyser.smoothingTimeConstant = 0.15
     this.analyserData = new Uint8Array(this.analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>
     this.sourceNode.connect(this.analyser)
 
@@ -139,11 +151,6 @@ export class LoopEngine {
     if (config.outputDeviceId) {
       await this.setOutputDevice(config.outputDeviceId)
     }
-  }
-
-  /** Returns the actual sample rate negotiated by the AudioContext. */
-  getSampleRate(): number {
-    return this.context?.sampleRate ?? 0
   }
 
   /**
@@ -212,11 +219,78 @@ export class LoopEngine {
     return this.analyserData
   }
 
+  /** RMS amplitude of the input signal, 0–1. Safe to call on every rAF tick. */
+  getInputLevel(): number {
+    if (!this.analyser) return 0
+    const buf = new Float32Array(this.analyser.fftSize)
+    this.analyser.getFloatTimeDomainData(buf)
+    let sum = 0
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
+    return Math.sqrt(sum / buf.length)
+  }
+
+  /** RMS amplitude of the output signal (all tracks + monitor), 0–1. */
+  getOutputLevel(): number {
+    if (!this.outputAnalyser) return 0
+    const buf = new Float32Array(this.outputAnalyser.fftSize)
+    this.outputAnalyser.getFloatTimeDomainData(buf)
+    let sum = 0
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
+    return Math.sqrt(sum / buf.length)
+  }
+
+  getContextState(): AudioContextState | 'unknown' {
+    return this.context?.state ?? 'unknown'
+  }
+
+  async resumeContext(): Promise<void> {
+    await this.context?.resume()
+    this.notify()
+  }
+
+  getMonitorVolume(): number { return this.monitorVolume }
+
+  setMonitorVolume(v: number): void {
+    this.monitorVolume = Math.max(0, Math.min(1, v))
+    if (this.monitoring && this.monitorGain) {
+      this.monitorGain.gain.value = this.monitorVolume
+    }
+    this.notify()
+  }
+
+  /** Play a brief sine tone through the output chain to verify routing. */
+  startTestTone(frequency = 440): void {
+    if (!this.context) return
+    this.stopTestTone()
+    this.context.resume()
+    const osc = this.context.createOscillator()
+    const gain = this.context.createGain()
+    gain.gain.value = 0.15
+    osc.type = 'sine'
+    osc.frequency.value = frequency
+    osc.connect(gain)
+    gain.connect(this.masterGain!)
+    osc.start()
+    osc.stop(this.context.currentTime + 1.5)
+    osc.onended = () => { this.testToneOsc = null; this.notify() }
+    this.testToneOsc = osc
+    this.notify()
+  }
+
+  stopTestTone(): void {
+    try { this.testToneOsc?.stop() } catch { /* already stopped */ }
+    this.testToneOsc = null
+  }
+
+  isTestTonePlaying(): boolean { return this.testToneOsc !== null }
+
+  getSampleRate(): number { return this.context?.sampleRate ?? 0 }
+
   setMonitoring(enabled: boolean): void {
     if (!this.monitorGain) return
     this.monitoring = enabled
     this.autoMonitoring = false
-    this.monitorGain.gain.value = enabled ? 1 : 0
+    this.monitorGain.gain.value = enabled ? this.monitorVolume : 0
     this.notify()
   }
 
@@ -453,11 +527,13 @@ export class LoopEngine {
 
   async destroy(): Promise<void> {
     this.stopAll()
+    this.stopTestTone()
     this.processor?.disconnect()
     this.processorSink?.disconnect()
     this.sourceNode?.disconnect()
     this.monitorGain?.disconnect()
     this.analyser?.disconnect()
+    this.outputAnalyser?.disconnect()
     this.masterGain?.disconnect()
     for (const [, t] of this.tracks) t.gain.disconnect()
     this.tracks.clear()
@@ -471,6 +547,7 @@ export class LoopEngine {
     this.processorSink = null
     this.masterGain = null
     this.monitorGain = null
+    this.outputAnalyser = null
     this.mediaStream = null
   }
 }

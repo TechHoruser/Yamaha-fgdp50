@@ -4,6 +4,7 @@ import { TransportBar } from './ui/components/TransportBar'
 import { Metronome } from './ui/components/Metronome'
 import { AudioDeviceSelector } from './ui/components/AudioDeviceSelector'
 import { MidiDeviceSelector } from './ui/components/MidiDeviceSelector'
+import { AudioMonitorModal } from './ui/components/AudioMonitorModal'
 import { UpdateBanner } from './ui/components/UpdateBanner'
 import { useLooperState } from './hooks/useLooperState'
 import { useAudioDevices } from './hooks/useAudioDevices'
@@ -39,6 +40,7 @@ const App: React.FC = () => {
     () => loadJson<Record<number, number>>(VOLUMES_KEY, {}),
   )
   const [liveWaveform, setLiveWaveform] = useState<number[] | null>(null)
+  const [monitorOpen, setMonitorOpen] = useState(false)
   const rafRef = useRef<number | null>(null)
 
   const recordingTrackId = engine?.recordingTrackId() ?? null
@@ -267,23 +269,29 @@ const App: React.FC = () => {
         <div style={{ flex: 1 }} />
 
         <button
-          onClick={() => engine?.toggleMonitoring()}
-          disabled={!engine}
-          title={isMonitoring ? 'Monitor activo: escuchas la entrada por los altavoces' : 'Activar monitor (cuidado con el feedback)'}
+          onClick={() => setMonitorOpen(true)}
+          disabled={!engineReady}
+          title="Abrir monitor de audio (entrada / salida / test tone)"
           style={{
             background: isMonitoring ? '#4a9fff22' : 'transparent',
-            border: `1px solid ${isMonitoring ? '#4a9fff' : '#2a2a2a'}`,
-            color: isMonitoring ? '#4a9fff' : '#666',
+            border: `1px solid ${isMonitoring ? '#4a9fff' : engineReady ? '#2a2a2a' : '#1a1a1a'}`,
+            color: isMonitoring ? '#4a9fff' : engineReady ? '#666' : '#333',
             borderRadius: '4px',
             padding: '0.25rem 0.6rem',
             fontSize: '0.65rem',
             fontWeight: 700,
             letterSpacing: '0.08em',
-            cursor: engine ? 'pointer' : 'not-allowed',
-            opacity: engine ? 1 : 0.4,
+            cursor: engineReady ? 'pointer' : 'not-allowed',
+            opacity: engineReady ? 1 : 0.35,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem',
           }}
         >
-          MONITOR
+          <span>MONITOR</span>
+          {isMonitoring && (
+            <span style={{ fontSize: '0.55rem', color: '#4a9fff' }}>●</span>
+          )}
         </button>
 
         <AudioDeviceSelector
@@ -416,6 +424,18 @@ const App: React.FC = () => {
           onBpmChange={(bpm) => dispatch('SetBpm', bpm)}
         />
       </footer>
+
+      {monitorOpen && (
+        <AudioMonitorModal
+          engine={engine}
+          inputDeviceName={devices.find(d => d.deviceId === selectedId)?.label ?? ''}
+          outputDeviceName={
+            outputs.find(d => d.deviceId === selectedOutputId)?.label ??
+            (selectedOutputId ? selectedOutputId : '')
+          }
+          onClose={() => setMonitorOpen(false)}
+        />
+      )}
     </div>
   )
 }
