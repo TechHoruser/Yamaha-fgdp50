@@ -91,6 +91,9 @@ func (a *App) MergeWithBelow() { a.looperEngine.MergeWithBelow() }
 // MergeWithAbove combines the active track with the one above (wraps around).
 func (a *App) MergeWithAbove() { a.looperEngine.MergeWithAbove() }
 
+func (a *App) GetBpm() int       { return a.looperEngine.GetBpm() }
+func (a *App) SetBpm(bpm int)    { a.looperEngine.SetBpm(bpm) }
+
 // CheckForUpdates queries the GitHub Releases API and returns update info.
 func (a *App) CheckForUpdates() (updater.UpdateInfo, error) {
 	return updater.Check(Version)

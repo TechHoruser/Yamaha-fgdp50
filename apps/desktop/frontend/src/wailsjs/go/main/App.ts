@@ -60,6 +60,12 @@ export async function MergeWithBelow(): Promise<void> {
 export async function MergeWithAbove(): Promise<void> {
   return go.MergeWithAbove?.()
 }
+export async function GetBpm(): Promise<number> {
+  return go.GetBpm?.() ?? 120
+}
+export async function SetBpm(bpm: number): Promise<void> {
+  return go.SetBpm?.(bpm)
+}
 
 export interface UpdateInfo {
   hasUpdate: boolean

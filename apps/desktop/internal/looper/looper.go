@@ -22,6 +22,7 @@ type Engine struct {
 	activeTrack int
 	state       State
 	metronome   bool
+	bpm         int
 }
 
 func NewEngine() *Engine {
@@ -33,6 +34,7 @@ func NewEngine() *Engine {
 		tracks:      tracks,
 		nextID:      DefaultInitialTracks + 1,
 		activeTrack: 0,
+		bpm:         120,
 	}
 }
 
@@ -73,10 +75,32 @@ func (e *Engine) RemoveTrack(id int) {
 	}
 }
 
+// GetTracks returns a deep copy of the track slice so callers cannot mutate
+// the engine's internal state and to avoid data races during JSON serialisation.
 func (e *Engine) GetTracks() []*Track {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return e.tracks
+	out := make([]*Track, len(e.tracks))
+	for i, t := range e.tracks {
+		cp := *t
+		out[i] = &cp
+	}
+	return out
+}
+
+func (e *Engine) GetBpm() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.bpm
+}
+
+func (e *Engine) SetBpm(bpm int) {
+	if bpm < 20 || bpm > 300 {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.bpm = bpm
 }
 
 func (e *Engine) SelectTrack(id int) {
