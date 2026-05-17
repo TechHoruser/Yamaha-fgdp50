@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { LoopEngine } from '../core/audio-engine'
 
-export function useAudioEngine(deviceId: string) {
+export function useAudioEngine(deviceId: string, outputDeviceId = '') {
   const engineRef = useRef<LoopEngine | null>(null)
   const [engine, setEngine] = useState<LoopEngine | null>(null)
   const [ready, setReady] = useState(false)
@@ -9,14 +9,17 @@ export function useAudioEngine(deviceId: string) {
   const [, setVersion] = useState(0)
   const initializedRef = useRef(false)
 
-  // Initialize engine once on first valid deviceId
+  // Initialize engine once on first valid deviceId.
+  // sampleRate is intentionally NOT forced — the AudioContext uses the device's
+  // native rate, which avoids the internal resampler and lower-quality output
+  // that "que devuelva el sonido, actualmente no va muy bien" pointed at.
   useEffect(() => {
     if (!deviceId) return
     let cancelled = false
     const e = new LoopEngine()
     const unsubscribe = e.subscribe(() => setVersion((v) => v + 1))
 
-    e.init({ sampleRate: 44100, inputDeviceId: deviceId })
+    e.init({ inputDeviceId: deviceId, outputDeviceId })
       .then(() => {
         if (cancelled) { e.destroy(); return }
         engineRef.current = e
@@ -53,6 +56,17 @@ export function useAudioEngine(deviceId: string) {
         setError(err instanceof Error ? err.message : 'Error al cambiar dispositivo de audio')
       })
   }, [deviceId])
+
+  // Swap output sink when outputDeviceId changes
+  useEffect(() => {
+    if (!initializedRef.current || !engineRef.current) return
+    engineRef.current
+      .setOutputDevice(outputDeviceId)
+      .then(() => setError(null))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Error al cambiar salida de audio')
+      })
+  }, [outputDeviceId])
 
   return { engine, ready, error }
 }

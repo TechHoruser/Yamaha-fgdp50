@@ -1,6 +1,16 @@
 export interface LoopEngineConfig {
-  sampleRate: number
+  /** Preferred sample rate; the AudioContext may override (especially on macOS). */
+  sampleRate?: number
   inputDeviceId?: string
+  /** Output device sinkId (Chromium setSinkId). Empty string = default output. */
+  outputDeviceId?: string
+}
+
+// AudioContext.setSinkId is available in recent Chromium / WebView2 but TS lib
+// types haven't caught up yet. Declare it locally so we can use it safely.
+interface AudioContextWithSink extends AudioContext {
+  setSinkId?: (sinkId: string | { type: 'none' }) => Promise<void>
+  sinkId?: string
 }
 
 interface TrackAudio {
@@ -74,7 +84,12 @@ export class LoopEngine {
   }
 
   async init(config: LoopEngineConfig): Promise<void> {
-    const ctx = new AudioContext({ sampleRate: config.sampleRate })
+    // latencyHint=interactive minimises round-trip latency (critical for a looper).
+    // We do NOT force a sample rate on macOS — the OS only allows the hardware rate
+    // and forcing 44100 creates an internal resampler that adds jitter to recordings.
+    const ctxOptions: AudioContextOptions = { latencyHint: 'interactive' }
+    if (config.sampleRate) ctxOptions.sampleRate = config.sampleRate
+    const ctx = new AudioContext(ctxOptions)
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: config.inputDeviceId ? { exact: config.inputDeviceId } : undefined,
@@ -115,6 +130,33 @@ export class LoopEngine {
     sink.gain.value = 0
     this.processor.connect(sink)
     sink.connect(ctx.destination)
+
+    if (config.outputDeviceId) {
+      await this.setOutputDevice(config.outputDeviceId)
+    }
+  }
+
+  /** Returns the actual sample rate negotiated by the AudioContext. */
+  getSampleRate(): number {
+    return this.context?.sampleRate ?? 0
+  }
+
+  /**
+   * Route playback to a specific output device (Chromium setSinkId).
+   * Pass '' for the system default. Throws if not supported.
+   */
+  async setOutputDevice(sinkId: string): Promise<void> {
+    const ctx = this.context as AudioContextWithSink | null
+    if (!ctx) throw new Error('Engine not initialized')
+    if (typeof ctx.setSinkId !== 'function') {
+      throw new Error('Selección de salida no soportada por este WebView')
+    }
+    await ctx.setSinkId(sinkId)
+  }
+
+  getOutputDeviceId(): string {
+    const ctx = this.context as AudioContextWithSink | null
+    return ctx?.sinkId ?? ''
   }
 
   private ensureTrack(id: number): TrackAudio {
@@ -306,6 +348,43 @@ export class LoopEngine {
     this.notify()
   }
 
+  /**
+   * Mix the audio buffer of `sourceId` into `targetId` and clear the source.
+   * If only one side has a buffer, that buffer is moved to the target.
+   * Mix length is the longer of the two; shorter signal repeats by modulo so
+   * loops with different lengths still combine musically.
+   */
+  mergeInto(targetId: number, sourceId: number): void {
+    if (!this.context || targetId === sourceId) return
+    const target = this.ensureTrack(targetId)
+    const source = this.tracks.get(sourceId)
+    if (!source?.buffer && !target.buffer) return
+
+    let mixed: Float32Array
+    if (!source?.buffer) {
+      // Nothing to merge — target stays as is.
+      return
+    } else if (!target.buffer) {
+      mixed = new Float32Array(source.buffer.getChannelData(0))
+    } else {
+      const a = target.buffer.getChannelData(0)
+      const b = source.buffer.getChannelData(0)
+      const len = Math.max(a.length, b.length)
+      mixed = new Float32Array(len)
+      for (let i = 0; i < len; i++) {
+        const va = a[i % a.length]
+        const vb = b[i % b.length]
+        const sum = va + vb
+        mixed[i] = sum > 1 ? 1 : sum < -1 ? -1 : sum
+      }
+    }
+
+    const buf = this.context.createBuffer(1, mixed.length, this.context.sampleRate)
+    buf.getChannelData(0).set(mixed)
+    this.replaceBuffer(targetId, buf, this.isPlaying())
+    this.clearTrack(sourceId)
+  }
+
   /** Remove the loop from a track (audio + state). */
   clearTrack(trackId: number): void {
     const t = this.tracks.get(trackId)
@@ -324,6 +403,22 @@ export class LoopEngine {
 
   /** Same as clearTrack — undo is a single-level "remove loop" today. */
   undoTrack(trackId: number): void { this.clearTrack(trackId) }
+
+  /**
+   * Fully release a track: stop playback, clear its buffer, and disconnect its
+   * gain node. Use after the looper backend has removed the track from its list.
+   */
+  destroyTrack(trackId: number): void {
+    const t = this.tracks.get(trackId)
+    if (!t) return
+    if (t.source) {
+      try { t.source.stop() } catch { /* already stopped */ }
+      t.source.disconnect()
+    }
+    try { t.gain.disconnect() } catch { /* already disconnected */ }
+    this.tracks.delete(trackId)
+    this.notify()
+  }
 
   async updateInputDevice(deviceId: string): Promise<void> {
     if (!this.context) throw new Error('Engine not initialized')

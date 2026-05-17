@@ -5,32 +5,73 @@ export interface AudioInputDevice {
   label: string
 }
 
+export interface AudioOutputDevice {
+  deviceId: string
+  label: string
+}
+
+const OUTPUT_PREF_KEY = 'fgdp-looper.outputDeviceId'
+const INPUT_PREF_KEY = 'fgdp-looper.inputDeviceId'
+
+function pickFgdp<T extends { label: string; deviceId: string }>(devs: T[]): T | undefined {
+  return devs.find(
+    d =>
+      d.label.toLowerCase().includes('fgdp') ||
+      d.label.toLowerCase().includes('yamaha'),
+  )
+}
+
 export function useAudioDevices() {
   const [devices, setDevices] = useState<AudioInputDevice[]>([])
-  const [selectedId, setSelectedId] = useState<string>('')
+  const [outputs, setOutputs] = useState<AudioOutputDevice[]>([])
+  const [selectedId, setSelectedIdState] = useState<string>(
+    () => localStorage.getItem(INPUT_PREF_KEY) ?? '',
+  )
+  const [selectedOutputId, setSelectedOutputIdState] = useState<string>(
+    () => localStorage.getItem(OUTPUT_PREF_KEY) ?? '',
+  )
   const [hasPermission, setHasPermission] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const setSelectedId = useCallback((id: string) => {
+    setSelectedIdState(id)
+    try { localStorage.setItem(INPUT_PREF_KEY, id) } catch { /* storage blocked */ }
+  }, [])
+  const setSelectedOutputId = useCallback((id: string) => {
+    setSelectedOutputIdState(id)
+    try { localStorage.setItem(OUTPUT_PREF_KEY, id) } catch { /* storage blocked */ }
+  }, [])
 
   const enumerate = useCallback(async () => {
     try {
       const all = await navigator.mediaDevices.enumerateDevices()
-      const inputs = all.filter(d => d.kind === 'audioinput')
-      const granted = inputs.some(d => d.label !== '')
+      const ins = all.filter(d => d.kind === 'audioinput')
+      const outs = all.filter(d => d.kind === 'audiooutput')
+      const granted = ins.some(d => d.label !== '')
       setHasPermission(granted)
-      const mapped: AudioInputDevice[] = inputs.map((d, i) => ({
+      const mappedIn: AudioInputDevice[] = ins.map((d, i) => ({
         deviceId: d.deviceId,
         label: d.label || `Entrada de audio ${i + 1}`,
       }))
-      setDevices(mapped)
+      const mappedOut: AudioOutputDevice[] = outs.map((d, i) => ({
+        deviceId: d.deviceId,
+        label: d.label || `Salida de audio ${i + 1}`,
+      }))
+      setDevices(mappedIn)
+      setOutputs(mappedOut)
       if (granted) {
-        setSelectedId(prev => {
-          if (prev && mapped.some(d => d.deviceId === prev)) return prev
-          const fgdp = mapped.find(
-            d =>
-              d.label.toLowerCase().includes('fgdp') ||
-              d.label.toLowerCase().includes('yamaha'),
-          )
-          return fgdp?.deviceId ?? mapped[0]?.deviceId ?? ''
+        setSelectedIdState(prev => {
+          if (prev && mappedIn.some(d => d.deviceId === prev)) return prev
+          const auto = pickFgdp(mappedIn)?.deviceId ?? mappedIn[0]?.deviceId ?? ''
+          if (auto) {
+            try { localStorage.setItem(INPUT_PREF_KEY, auto) } catch { /* ignore */ }
+          }
+          return auto
+        })
+        setSelectedOutputIdState(prev => {
+          if (prev && mappedOut.some(d => d.deviceId === prev)) return prev
+          // Default output ('') is always valid — let the browser pick.
+          return prev
         })
       }
     } catch {
@@ -58,5 +99,16 @@ export function useAudioDevices() {
     return () => navigator.mediaDevices.removeEventListener('devicechange', enumerate)
   }, [enumerate])
 
-  return { devices, selectedId, setSelectedId, hasPermission, requestPermission, refresh: enumerate, error }
+  return {
+    devices,
+    outputs,
+    selectedId,
+    selectedOutputId,
+    setSelectedId,
+    setSelectedOutputId,
+    hasPermission,
+    requestPermission,
+    refresh: enumerate,
+    error,
+  }
 }

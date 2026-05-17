@@ -1,24 +1,40 @@
 import React from 'react'
-import type { AudioInputDevice } from '../../hooks/useAudioDevices'
+import type { AudioInputDevice, AudioOutputDevice } from '../../hooks/useAudioDevices'
 
 interface AudioDeviceSelectorProps {
   devices: AudioInputDevice[]
+  outputs: AudioOutputDevice[]
   selectedId: string
+  selectedOutputId: string
   hasPermission: boolean
   engineReady: boolean
   engineError: string | null
   onSelect: (deviceId: string) => void
+  onSelectOutput: (deviceId: string) => void
   onRequestPermission: () => void
   onRefresh: () => void
 }
 
+const selectStyle: React.CSSProperties = {
+  background: '#1e1e1e',
+  border: '1px solid #444',
+  borderRadius: '4px',
+  color: '#e0e0e0',
+  padding: '0.2rem 0.4rem',
+  fontSize: '0.7rem',
+  maxWidth: '180px',
+}
+
 export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
   devices,
+  outputs,
   selectedId,
+  selectedOutputId,
   hasPermission,
   engineReady,
   engineError,
   onSelect,
+  onSelectOutput,
   onRequestPermission,
   onRefresh,
 }) => {
@@ -48,19 +64,12 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-      <span style={{ fontSize: '0.7rem', color: '#888' }}>ENTRADA</span>
+      <span style={{ fontSize: '0.7rem', color: '#888' }}>IN</span>
       <select
         value={selectedId}
         onChange={e => onSelect(e.target.value)}
-        style={{
-          background: '#1e1e1e',
-          border: '1px solid #444',
-          borderRadius: '4px',
-          color: '#e0e0e0',
-          padding: '0.2rem 0.4rem',
-          fontSize: '0.7rem',
-          maxWidth: '220px',
-        }}
+        aria-label="Dispositivo de entrada"
+        style={selectStyle}
       >
         {devices.map(d => (
           <option key={d.deviceId} value={d.deviceId}>
@@ -68,6 +77,22 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
           </option>
         ))}
       </select>
+
+      <span style={{ fontSize: '0.7rem', color: '#888' }}>OUT</span>
+      <select
+        value={selectedOutputId}
+        onChange={e => onSelectOutput(e.target.value)}
+        aria-label="Dispositivo de salida"
+        style={selectStyle}
+      >
+        <option value="">Predeterminado del sistema</option>
+        {outputs.map(d => (
+          <option key={d.deviceId} value={d.deviceId}>
+            {d.label}
+          </option>
+        ))}
+      </select>
+
       <button
         onClick={onRefresh}
         title="Actualizar dispositivos"
