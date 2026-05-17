@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 
 interface TrackPanelProps {
   trackId: number
@@ -8,6 +8,7 @@ interface TrackPanelProps {
   hasLoop?: boolean
   recording?: boolean
   bpm?: number
+  volume?: number
   waveformData?: number[] | null
   canRemove?: boolean
   onSelect?: () => void
@@ -62,6 +63,7 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
   hasLoop = false,
   recording = false,
   bpm = 120,
+  volume: controlledVolume,
   waveformData = null,
   canRemove = true,
   onSelect,
@@ -72,13 +74,11 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
   onMergeDown,
   onRemove,
 }) => {
-  const [volume, setVolume] = useState(75)
+  // Controlled if parent passes volume, otherwise own state.
+  const [localVolume, setLocalVolume] = useState(controlledVolume ?? 75)
+  const volume = controlledVolume ?? localVolume
   const [bars, setBars] = useState('4 bars')
   const synthetic = useMemo(() => syntheticWaveform(trackId), [trackId])
-
-  // Push initial volume to the engine on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { onVolumeChange?.(volume) }, [])
 
   const waveColor = trackId % 2 === 1 ? '#4a9fff' : '#f59e0b'
   const trackNum = String(trackId).padStart(2, '0')
@@ -187,7 +187,7 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
         aria-label="Volumen"
         onChange={(e) => {
           const v = Number(e.target.value)
-          setVolume(v)
+          setLocalVolume(v)
           onVolumeChange?.(v)
         }}
         onClick={(e) => e.stopPropagation()}

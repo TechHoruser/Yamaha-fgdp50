@@ -20,10 +20,11 @@ export function useLooperState() {
 
   const refresh = useCallback(async () => {
     try {
-      const [rawTracks, metronomeActive, activeTrack] = await Promise.all([
+      const [rawTracks, metronomeActive, activeTrack, bpm] = await Promise.all([
         WailsApp.GetTracks(),
         WailsApp.IsMetronomeActive(),
         WailsApp.GetActiveTrack(),
+        WailsApp.GetBpm(),
       ])
       if (rawTracks?.length) {
         setState(prev => ({
@@ -31,6 +32,7 @@ export function useLooperState() {
           tracks: rawTracks as Track[],
           metronomeActive: metronomeActive ?? prev.metronomeActive,
           activeTrack: activeTrack ?? prev.activeTrack,
+          bpm: bpm ?? prev.bpm,
         }))
       }
     } catch {
@@ -44,12 +46,15 @@ export function useLooperState() {
     return () => clearInterval(id)
   }, [refresh])
 
+  // Returns the Wails return value so callers (e.g. AddTrack) can use it.
   const dispatch = useCallback(
-    async (action: keyof typeof WailsApp, ...args: unknown[]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async (action: keyof typeof WailsApp, ...args: unknown[]): Promise<any> => {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (WailsApp[action] as any)?.(...args)
+        const result = await (WailsApp[action] as any)?.(...args)
         await refresh()
+        return result
       } catch {
         // Wails runtime unavailable
       }
@@ -57,13 +62,30 @@ export function useLooperState() {
     [refresh],
   )
 
+  // Optimistic update: update local state immediately and confirm via Wails.
+  // If the backend rejects, the next poll will correct the state.
   const selectTrack = useCallback(
     (id: number) => {
-      setState((prev) => ({ ...prev, activeTrack: id }))
+      setState((prev) => {
+        // Guard: only update if the track actually exists in the current state.
+        if (!prev.tracks.some(t => t.id === id)) return prev
+        return { ...prev, activeTrack: id }
+      })
       WailsApp.SelectTrack(id).catch(() => {})
     },
     [],
   )
 
-  return { state, dispatch, refresh, selectTrack }
+  const removeTrackOptimistic = useCallback((id: number) => {
+    setState(prev => ({
+      ...prev,
+      tracks: prev.tracks.filter(t => t.id !== id),
+      // Clamp activeTrack if we just removed the active track
+      activeTrack: prev.activeTrack === id
+        ? (prev.tracks.find(t => t.id !== id)?.id ?? prev.activeTrack)
+        : prev.activeTrack,
+    }))
+  }, [])
+
+  return { state, setState, dispatch, refresh, selectTrack, removeTrackOptimistic }
 }

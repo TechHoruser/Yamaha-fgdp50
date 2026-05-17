@@ -12,8 +12,15 @@ import { useAutoUpdate } from './hooks/useAutoUpdate'
 import { useMidiInput, type MidiNoteEvent } from './hooks/useMidiInput'
 import * as WailsApp from './wailsjs/go/main/App'
 
+const NAMES_KEY = 'fgdp-looper.trackNames'
+const VOLUMES_KEY = 'fgdp-looper.trackVolumes'
+
+function loadJson<T>(key: string, fallback: T): T {
+  try { return JSON.parse(localStorage.getItem(key) ?? 'null') ?? fallback } catch { return fallback }
+}
+
 const App: React.FC = () => {
-  const { state, dispatch, refresh, selectTrack } = useLooperState()
+  const { state, dispatch, refresh, selectTrack, removeTrackOptimistic } = useLooperState()
   const {
     devices, outputs, selectedId, selectedOutputId,
     setSelectedId, setSelectedOutputId, hasPermission,
@@ -22,7 +29,15 @@ const App: React.FC = () => {
   const { engine, ready: engineReady, error: engineError } =
     useAudioEngine(selectedId, selectedOutputId)
   const { updateInfo, installing, error: updateError, install, dismiss } = useAutoUpdate()
-  const [trackNames, setTrackNames] = useState<Record<number, string>>({})
+
+  // Track names persisted to localStorage.
+  const [trackNames, setTrackNames] = useState<Record<number, string>>(
+    () => loadJson<Record<number, string>>(NAMES_KEY, {}),
+  )
+  // Track volumes lifted to App so sliders survive re-renders and are persisted.
+  const [trackVolumes, setTrackVolumes] = useState<Record<number, number>>(
+    () => loadJson<Record<number, number>>(VOLUMES_KEY, {}),
+  )
   const [liveWaveform, setLiveWaveform] = useState<number[] | null>(null)
   const rafRef = useRef<number | null>(null)
 
@@ -80,11 +95,22 @@ const App: React.FC = () => {
     } catch { /* Wails unavailable */ }
   }, [engine, refresh, state.tracks])
 
-  const handleVolumeChange = (id: number, volume: number) =>
+  const handleVolumeChange = useCallback((id: number, volume: number) => {
+    setTrackVolumes((prev) => {
+      const next = { ...prev, [id]: volume }
+      try { localStorage.setItem(VOLUMES_KEY, JSON.stringify(next)) } catch { /* storage blocked */ }
+      return next
+    })
     engine?.setVolume(id, volume / 100)
+  }, [engine])
 
-  const handleNameChange = (id: number, name: string) =>
-    setTrackNames((prev) => ({ ...prev, [id]: name }))
+  const handleNameChange = useCallback((id: number, name: string) => {
+    setTrackNames((prev) => {
+      const next = { ...prev, [id]: name }
+      try { localStorage.setItem(NAMES_KEY, JSON.stringify(next)) } catch { /* storage blocked */ }
+      return next
+    })
+  }, [])
 
   // ── Transport handlers ────────────────────────────────────────────
   const handleRecord = useCallback(async () => {
@@ -134,13 +160,21 @@ const App: React.FC = () => {
 
   // ── Track add / remove / merge ────────────────────────────────────
   const handleAddTrack = useCallback(async () => {
-    await dispatch('AddTrack')
-  }, [dispatch])
+    const newId: number = await dispatch('AddTrack')
+    if (newId) {
+      // Give the new track a default name and select it immediately.
+      handleNameChange(newId, `Pista ${newId}`)
+      setTrackVolumes(prev => ({ ...prev, [newId]: 75 }))
+      selectTrack(newId)
+    }
+  }, [dispatch, handleNameChange, selectTrack])
 
   const handleRemoveTrack = useCallback(async (id: number) => {
+    // Optimistic: remove from React state immediately so the UI feels instant.
+    removeTrackOptimistic(id)
     engine?.destroyTrack(id)
     await dispatch('RemoveTrack', id)
-  }, [engine, dispatch])
+  }, [engine, dispatch, removeTrackOptimistic])
 
   const handleMergeUp = useCallback(async (id: number) => {
     if (!engine) return
@@ -321,6 +355,7 @@ const App: React.FC = () => {
               hasLoop={hasLoop}
               recording={isThisRecording}
               bpm={state.bpm}
+              volume={trackVolumes[track.id] ?? 75}
               waveformData={isThisRecording ? liveWaveform : realWaveform}
               canRemove={state.tracks.length > 1}
               onSelect={() => handleSelectTrack(track.id)}
@@ -378,7 +413,7 @@ const App: React.FC = () => {
           active={state.metronomeActive}
           bpm={state.bpm}
           onToggle={() => dispatch('ToggleMetronome')}
-          onBpmChange={(bpm) => dispatch('SetBpm' as keyof typeof WailsApp, bpm)}
+          onBpmChange={(bpm) => dispatch('SetBpm', bpm)}
         />
       </footer>
     </div>
