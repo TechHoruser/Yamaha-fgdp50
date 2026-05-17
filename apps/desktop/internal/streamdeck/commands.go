@@ -14,6 +14,7 @@ const (
 	ActionClearActive     ActionType = "CLEAR_ACTIVE"
 	ActionToggleMetronome ActionType = "TOGGLE_METRONOME"
 	ActionMergeWithBelow  ActionType = "MERGE_WITH_BELOW"
+	ActionMergeWithAbove  ActionType = "MERGE_WITH_ABOVE"
 
 	// Row 3 — Transport
 	ActionPlayPause ActionType = "PLAY_PAUSE"

@@ -10,6 +10,7 @@ export enum StreamDeckAction {
   ClearActive = 'CLEAR_ACTIVE',
   ToggleMetronome = 'TOGGLE_METRONOME',
   MergeWithBelow = 'MERGE_WITH_BELOW',
+  MergeWithAbove = 'MERGE_WITH_ABOVE',
 
   // Transport
   PlayPause = 'PLAY_PAUSE',

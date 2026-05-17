@@ -81,6 +81,8 @@ func (s *Server) dispatch(cmd Command) {
 		s.engine.ToggleMetronome()
 	case ActionMergeWithBelow:
 		s.engine.MergeWithBelow()
+	case ActionMergeWithAbove:
+		s.engine.MergeWithAbove()
 	case ActionPlayPause:
 		s.engine.Play()
 	case ActionRecord:

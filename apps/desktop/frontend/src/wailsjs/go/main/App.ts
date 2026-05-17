@@ -48,6 +48,18 @@ export async function ClearActiveTrack(): Promise<void> {
 export async function ToggleMetronome(): Promise<void> {
   return go.ToggleMetronome?.()
 }
+export async function AddTrack(): Promise<number> {
+  return go.AddTrack?.() ?? 0
+}
+export async function RemoveTrack(id: number): Promise<void> {
+  return go.RemoveTrack?.(id)
+}
+export async function MergeWithBelow(): Promise<void> {
+  return go.MergeWithBelow?.()
+}
+export async function MergeWithAbove(): Promise<void> {
+  return go.MergeWithAbove?.()
+}
 
 export interface UpdateInfo {
   hasUpdate: boolean

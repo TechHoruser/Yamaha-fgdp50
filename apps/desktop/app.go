@@ -79,6 +79,18 @@ func (a *App) GetState() looper.State  { return a.looperEngine.GetState() }
 func (a *App) GetActiveTrack() int     { return a.looperEngine.GetActiveTrack() }
 func (a *App) IsMetronomeActive() bool { return a.looperEngine.IsMetronomeActive() }
 
+// AddTrack appends a new empty track and returns its ID.
+func (a *App) AddTrack() int { return a.looperEngine.AddTrack() }
+
+// RemoveTrack deletes the track with the given ID (no-op if it's the last one).
+func (a *App) RemoveTrack(id int) { a.looperEngine.RemoveTrack(id) }
+
+// MergeWithBelow combines the active track with the one below (wraps around).
+func (a *App) MergeWithBelow() { a.looperEngine.MergeWithBelow() }
+
+// MergeWithAbove combines the active track with the one above (wraps around).
+func (a *App) MergeWithAbove() { a.looperEngine.MergeWithAbove() }
+
 // CheckForUpdates queries the GitHub Releases API and returns update info.
 func (a *App) CheckForUpdates() (updater.UpdateInfo, error) {
 	return updater.Check(Version)

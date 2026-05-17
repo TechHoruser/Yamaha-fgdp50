@@ -56,7 +56,7 @@ func TestDispatch_allSupportedActions(t *testing.T) {
 	noPayload := []ActionType{
 		ActionPrevTrack, ActionNextTrack,
 		ActionUndo, ActionMuteActive, ActionClearActive, ActionToggleMetronome,
-		ActionMergeWithBelow,
+		ActionMergeWithBelow, ActionMergeWithAbove,
 		ActionPlayPause, ActionRecord, ActionOverdub, ActionStop,
 	}
 	s := newTestServer()

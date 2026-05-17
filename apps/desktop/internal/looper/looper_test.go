@@ -199,3 +199,115 @@ func TestMergeWithBelow_wrapsAroundLastTrack(t *testing.T) {
 		t.Errorf("want first track (below, was empty) to remain empty")
 	}
 }
+
+func TestMergeWithAbove_combinesLoopsAndClearsSource(t *testing.T) {
+	e := NewEngine()
+	e.SelectTrack(2)
+	e.Record()
+	e.Stop()
+	e.SelectTrack(3)
+	e.Record()
+	e.Stop()
+
+	// Active=track 3, merge with track 2 (above).
+	e.SelectTrack(3)
+	e.MergeWithAbove()
+
+	if !e.tracks[2].HasLoop {
+		t.Errorf("want active track to keep hasLoop=true after merge")
+	}
+	if e.tracks[1].HasLoop {
+		t.Errorf("want above track cleared after merge")
+	}
+}
+
+func TestMergeWithAbove_wrapsAroundFirstTrack(t *testing.T) {
+	e := NewEngine()
+	// Give track 1 (first) a loop, then merge with track 4 above (wraps).
+	e.SelectTrack(1)
+	e.Record()
+	e.Stop()
+	e.MergeWithAbove()
+
+	if !e.tracks[0].HasLoop {
+		t.Errorf("want first track to keep hasLoop=true after merge")
+	}
+	if e.tracks[3].HasLoop {
+		t.Errorf("want last track (above, was empty) to remain empty")
+	}
+}
+
+func TestAddTrack_appendsAndReturnsID(t *testing.T) {
+	e := NewEngine()
+	id := e.AddTrack()
+	if id != 5 {
+		t.Errorf("want id=5 (DefaultInitialTracks+1), got %d", id)
+	}
+	if len(e.tracks) != 5 {
+		t.Errorf("want 5 tracks, got %d", len(e.tracks))
+	}
+	id2 := e.AddTrack()
+	if id2 != 6 {
+		t.Errorf("want id=6, got %d", id2)
+	}
+	if len(e.tracks) != 6 {
+		t.Errorf("want 6 tracks, got %d", len(e.tracks))
+	}
+}
+
+func TestAddTrack_idsRemainUniqueAfterRemove(t *testing.T) {
+	e := NewEngine()
+	// Add a 5th track, remove it, add another. The new one should NOT reuse id 5.
+	e.AddTrack()      // id 5
+	e.RemoveTrack(5)  // gone
+	id := e.AddTrack()
+	if id != 6 {
+		t.Errorf("want id=6 (monotonic), got %d", id)
+	}
+}
+
+func TestRemoveTrack_removesByID(t *testing.T) {
+	e := NewEngine()
+	e.RemoveTrack(2)
+	if len(e.tracks) != 3 {
+		t.Errorf("want 3 tracks after remove, got %d", len(e.tracks))
+	}
+	for _, tr := range e.tracks {
+		if tr.ID == 2 {
+			t.Errorf("track id=2 should have been removed")
+		}
+	}
+}
+
+func TestRemoveTrack_refusesLastTrack(t *testing.T) {
+	e := NewEngine()
+	e.RemoveTrack(1)
+	e.RemoveTrack(2)
+	e.RemoveTrack(3)
+	// One left; refuse to remove it.
+	e.RemoveTrack(4)
+	if len(e.tracks) != 1 {
+		t.Errorf("want at least 1 track left, got %d", len(e.tracks))
+	}
+}
+
+func TestRemoveTrack_clampsActiveTrack(t *testing.T) {
+	e := NewEngine()
+	e.SelectTrack(4)
+	e.RemoveTrack(4)
+	// Active should have fallen back to the new last track (id 3).
+	if e.GetActiveTrack() != 3 {
+		t.Errorf("want active=3 after removing last, got %d", e.GetActiveTrack())
+	}
+}
+
+func TestSelectTrack_byActualID(t *testing.T) {
+	e := NewEngine()
+	// Remove track 2 and add a new one (id 5). Selecting by ID, not index.
+	e.RemoveTrack(2)
+	e.AddTrack() // id 5
+	e.SelectTrack(5)
+	if e.GetActiveTrack() != 5 {
+		t.Errorf("want active=5 after SelectTrack(5), got %d", e.GetActiveTrack())
+	}
+}
