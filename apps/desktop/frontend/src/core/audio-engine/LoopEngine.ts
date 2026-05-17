@@ -59,6 +59,10 @@ export class LoopEngine {
   private mediaStream: MediaStream | null = null
   private sourceNode: MediaStreamAudioSourceNode | null = null
   private processor: ScriptProcessorNode | null = null
+  // The silent sink keeps the ScriptProcessor alive in the audio graph even when
+  // nothing else is connected downstream. Stored as a field so updateInputDevice
+  // can re-use the same node instead of creating a dangling local variable.
+  private processorSink: GainNode | null = null
   private masterGain: GainNode | null = null
   private monitorGain: GainNode | null = null
   private analyser: AnalyserNode | null = null
@@ -124,12 +128,13 @@ export class LoopEngine {
       const input = e.inputBuffer.getChannelData(0)
       this.recordingChunks.push(new Float32Array(input))
     }
-    // Source must reach destination for ScriptProcessor to run.
+    // Source must reach destination for ScriptProcessor to fire onaudioprocess.
+    // Store the sink so updateInputDevice can reconnect through the same node.
     this.sourceNode.connect(this.processor)
-    const sink = ctx.createGain()
-    sink.gain.value = 0
-    this.processor.connect(sink)
-    sink.connect(ctx.destination)
+    this.processorSink = ctx.createGain()
+    this.processorSink.gain.value = 0
+    this.processor.connect(this.processorSink)
+    this.processorSink.connect(ctx.destination)
 
     if (config.outputDeviceId) {
       await this.setOutputDevice(config.outputDeviceId)
@@ -350,31 +355,36 @@ export class LoopEngine {
 
   /**
    * Mix the audio buffer of `sourceId` into `targetId` and clear the source.
-   * If only one side has a buffer, that buffer is moved to the target.
-   * Mix length is the longer of the two; shorter signal repeats by modulo so
-   * loops with different lengths still combine musically.
+   *
+   * Length policy: the mix length is the SHORTER of the two buffers.
+   * Allowing the longer one would produce an out-of-time result: the shorter
+   * loop would wrap mid-bar and sound musically incorrect. Users who want the
+   * longer loop should simply keep the longer track and overdub the other
+   * content on top using the overdub workflow.
+   *
+   * Guard: merging while either track is recording would discard the
+   * in-progress take. We bail out silently in that case.
    */
   mergeInto(targetId: number, sourceId: number): void {
     if (!this.context || targetId === sourceId) return
+    if (this.recordingTrack === targetId || this.recordingTrack === sourceId) return
     const target = this.ensureTrack(targetId)
     const source = this.tracks.get(sourceId)
     if (!source?.buffer && !target.buffer) return
 
     let mixed: Float32Array
     if (!source?.buffer) {
-      // Nothing to merge — target stays as is.
-      return
+      return // Nothing to merge — target stays as is.
     } else if (!target.buffer) {
       mixed = new Float32Array(source.buffer.getChannelData(0))
     } else {
       const a = target.buffer.getChannelData(0)
       const b = source.buffer.getChannelData(0)
-      const len = Math.max(a.length, b.length)
+      // Use the shorter length to keep loops in time.
+      const len = Math.min(a.length, b.length)
       mixed = new Float32Array(len)
       for (let i = 0; i < len; i++) {
-        const va = a[i % a.length]
-        const vb = b[i % b.length]
-        const sum = va + vb
+        const sum = a[i] + b[i]
         mixed[i] = sum > 1 ? 1 : sum < -1 ? -1 : sum
       }
     }
@@ -437,16 +447,14 @@ export class LoopEngine {
     this.sourceNode.connect(this.monitorGain!)
     this.sourceNode.connect(this.analyser!)
     this.sourceNode.connect(this.processor!)
-    // Sink needed to keep ScriptProcessor alive
-    const sink = this.context.createGain()
-    sink.gain.value = 0
-    this.processor!.connect(sink)
-    sink.connect(this.context.destination)
+    // Re-use the persistent sink node so the ScriptProcessor stays in the graph.
+    this.processor!.connect(this.processorSink!)
   }
 
   async destroy(): Promise<void> {
     this.stopAll()
     this.processor?.disconnect()
+    this.processorSink?.disconnect()
     this.sourceNode?.disconnect()
     this.monitorGain?.disconnect()
     this.analyser?.disconnect()
@@ -460,6 +468,7 @@ export class LoopEngine {
     this.context = null
     this.sourceNode = null
     this.processor = null
+    this.processorSink = null
     this.masterGain = null
     this.monitorGain = null
     this.mediaStream = null
