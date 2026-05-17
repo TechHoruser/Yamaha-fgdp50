@@ -3,29 +3,26 @@ import { TrackPanel } from './ui/components/TrackPanel'
 import { TransportBar } from './ui/components/TransportBar'
 import { Metronome } from './ui/components/Metronome'
 import { AudioDeviceSelector } from './ui/components/AudioDeviceSelector'
+import { MidiDeviceSelector } from './ui/components/MidiDeviceSelector'
 import { UpdateBanner } from './ui/components/UpdateBanner'
 import { useLooperState } from './hooks/useLooperState'
 import { useAudioDevices } from './hooks/useAudioDevices'
 import { useAudioEngine } from './hooks/useAudioEngine'
 import { useAutoUpdate } from './hooks/useAutoUpdate'
+import { useMidiInput, type MidiNoteEvent } from './hooks/useMidiInput'
 import * as WailsApp from './wailsjs/go/main/App'
-
-const DEFAULT_TRACK_NAMES: Record<number, string> = {
-  1: 'Pista 1',
-  2: 'Pista 2',
-  3: 'Pista 3',
-  4: 'Pista 4',
-}
 
 const App: React.FC = () => {
   const { state, dispatch, refresh, selectTrack } = useLooperState()
   const {
-    devices, selectedId, setSelectedId, hasPermission,
+    devices, outputs, selectedId, selectedOutputId,
+    setSelectedId, setSelectedOutputId, hasPermission,
     requestPermission, refresh: refreshDevices,
   } = useAudioDevices()
-  const { engine, ready: engineReady, error: engineError } = useAudioEngine(selectedId)
+  const { engine, ready: engineReady, error: engineError } =
+    useAudioEngine(selectedId, selectedOutputId)
   const { updateInfo, installing, error: updateError, install, dismiss } = useAutoUpdate()
-  const [trackNames, setTrackNames] = useState<Record<number, string>>(DEFAULT_TRACK_NAMES)
+  const [trackNames, setTrackNames] = useState<Record<number, string>>({})
   const [liveWaveform, setLiveWaveform] = useState<number[] | null>(null)
   const rafRef = useRef<number | null>(null)
 
@@ -135,6 +132,55 @@ const App: React.FC = () => {
     await dispatch('Undo')
   }, [engine, dispatch, state.activeTrack])
 
+  // ── Track add / remove / merge ────────────────────────────────────
+  const handleAddTrack = useCallback(async () => {
+    await dispatch('AddTrack')
+  }, [dispatch])
+
+  const handleRemoveTrack = useCallback(async (id: number) => {
+    engine?.destroyTrack(id)
+    await dispatch('RemoveTrack', id)
+  }, [engine, dispatch])
+
+  const handleMergeUp = useCallback(async (id: number) => {
+    if (!engine) return
+    const idx = state.tracks.findIndex((t) => t.id === id)
+    if (idx < 0) return
+    const above = state.tracks[(idx - 1 + state.tracks.length) % state.tracks.length]
+    engine.mergeInto(id, above.id)
+    await WailsApp.SelectTrack(id).catch(() => {})
+    await dispatch('MergeWithAbove')
+  }, [engine, dispatch, state.tracks])
+
+  const handleMergeDown = useCallback(async (id: number) => {
+    if (!engine) return
+    const idx = state.tracks.findIndex((t) => t.id === id)
+    if (idx < 0) return
+    const below = state.tracks[(idx + 1) % state.tracks.length]
+    engine.mergeInto(id, below.id)
+    await WailsApp.SelectTrack(id).catch(() => {})
+    await dispatch('MergeWithBelow')
+  }, [engine, dispatch, state.tracks])
+
+  // ── MIDI input ────────────────────────────────────────────────────
+  // The FGDP-50 sends Note On per pad on channel 10. We map the lowest
+  // pad of the kit (kick, MIDI note 36) to "toggle record on the active
+  // track" so users can trigger the looper hands-free. Other pads simply
+  // pass through — the actual audio they generate is captured by the
+  // audio engine like any other input sound.
+  const onMidiNote = useCallback((evt: MidiNoteEvent) => {
+    if (evt.type !== 'noteon') return
+    if (evt.note === 36) {
+      handleRecord()
+    } else if (evt.note === 38) {
+      handlePlay()
+    } else if (evt.note === 40) {
+      handleStop()
+    }
+  }, [handleRecord, handlePlay, handleStop])
+
+  const midi = useMidiInput({ onNote: onMidiNote })
+
   return (
     <div
       style={{
@@ -208,13 +254,26 @@ const App: React.FC = () => {
 
         <AudioDeviceSelector
           devices={devices}
+          outputs={outputs}
           selectedId={selectedId}
+          selectedOutputId={selectedOutputId}
           hasPermission={hasPermission}
           engineReady={engineReady}
           engineError={engineError}
           onSelect={setSelectedId}
+          onSelectOutput={setSelectedOutputId}
           onRequestPermission={requestPermission}
           onRefresh={refreshDevices}
+        />
+
+        <MidiDeviceSelector
+          devices={midi.devices}
+          selectedId={midi.selectedId}
+          supported={midi.supported}
+          error={midi.error}
+          lastNote={midi.lastNote}
+          onSelect={midi.setSelectedId}
+          onRefresh={midi.refresh}
         />
       </header>
 
@@ -263,16 +322,20 @@ const App: React.FC = () => {
               recording={isThisRecording}
               bpm={state.bpm}
               waveformData={isThisRecording ? liveWaveform : realWaveform}
+              canRemove={state.tracks.length > 1}
               onSelect={() => handleSelectTrack(track.id)}
               onMute={() => handleMuteTrack(track.id)}
               onVolumeChange={(v) => handleVolumeChange(track.id, v)}
               onNameChange={(name) => handleNameChange(track.id, name)}
+              onMergeUp={() => handleMergeUp(track.id)}
+              onMergeDown={() => handleMergeDown(track.id)}
+              onRemove={() => handleRemoveTrack(track.id)}
             />
           )
         })}
 
         <button
-          disabled
+          onClick={handleAddTrack}
           style={{
             display: 'block',
             width: '100%',
@@ -280,9 +343,9 @@ const App: React.FC = () => {
             background: 'transparent',
             border: 'none',
             borderBottom: '1px solid #1a1a1a',
-            color: '#2e2e2e',
+            color: '#888',
             fontSize: '0.75rem',
-            cursor: 'not-allowed',
+            cursor: 'pointer',
             textAlign: 'center',
             letterSpacing: '0.05em',
           }}

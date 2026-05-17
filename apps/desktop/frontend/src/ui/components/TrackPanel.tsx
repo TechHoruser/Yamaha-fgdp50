@@ -9,10 +9,14 @@ interface TrackPanelProps {
   recording?: boolean
   bpm?: number
   waveformData?: number[] | null
+  canRemove?: boolean
   onSelect?: () => void
   onMute?: () => void
   onVolumeChange?: (volume: number) => void
   onNameChange?: (name: string) => void
+  onMergeUp?: () => void
+  onMergeDown?: () => void
+  onRemove?: () => void
 }
 
 const BARS_OPTIONS = ['1 bar', '2 bars', '4 bars', '8 bars', '16 bars', '32 bars']
@@ -35,6 +39,21 @@ function barsToSeconds(barsLabel: string, bpm: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+const iconButtonStyle = (variant: 'neutral' | 'danger' = 'neutral'): React.CSSProperties => ({
+  width: '22px',
+  height: '22px',
+  background: 'transparent',
+  border: `1px solid ${variant === 'danger' ? '#5a1f1f' : '#2a2a2a'}`,
+  borderRadius: '3px',
+  color: variant === 'danger' ? '#c25151' : '#777',
+  fontSize: '0.7rem',
+  fontWeight: 700,
+  cursor: 'pointer',
+  padding: 0,
+  flexShrink: 0,
+  lineHeight: 1,
+})
+
 export const TrackPanel: React.FC<TrackPanelProps> = ({
   trackId,
   trackName,
@@ -44,10 +63,14 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
   recording = false,
   bpm = 120,
   waveformData = null,
+  canRemove = true,
   onSelect,
   onMute,
   onVolumeChange,
   onNameChange,
+  onMergeUp,
+  onMergeDown,
+  onRemove,
 }) => {
   const [volume, setVolume] = useState(75)
   const [bars, setBars] = useState('4 bars')
@@ -182,6 +205,37 @@ export const TrackPanel: React.FC<TrackPanelProps> = ({
       >
         {volume}
       </span>
+
+      {onMergeUp && (
+        <button
+          aria-label="Combinar con pista de arriba"
+          title="Combinar con la pista de arriba"
+          onClick={(e) => { e.stopPropagation(); onMergeUp() }}
+          style={iconButtonStyle()}
+        >
+          ↑
+        </button>
+      )}
+      {onMergeDown && (
+        <button
+          aria-label="Combinar con pista de abajo"
+          title="Combinar con la pista de abajo"
+          onClick={(e) => { e.stopPropagation(); onMergeDown() }}
+          style={iconButtonStyle()}
+        >
+          ↓
+        </button>
+      )}
+      {onRemove && canRemove && (
+        <button
+          aria-label="Eliminar pista"
+          title="Eliminar pista"
+          onClick={(e) => { e.stopPropagation(); onRemove() }}
+          style={iconButtonStyle('danger')}
+        >
+          ×
+        </button>
+      )}
 
       <div
         data-testid="waveform-area"
